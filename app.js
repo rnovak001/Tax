@@ -1,14 +1,21 @@
 const ENTITY_TYPES = [
   { type: "U.S. Corporation", shape: "rect", fill: "#ffffff" },
   { type: "Controlled Foreign Corporation", shape: "rect", fill: "#f6bf00" },
-  { type: "U.S. Disregarded Entity", shape: "roundedRect", fill: "#69d1d3" },
-  { type: "Foreign Disregarded Entity", shape: "roundedRect", fill: "#91cc4e" },
+  { type: "U.S. Disregarded Entity", shape: "roundedRect", fill: "#64d7d9" },
+  { type: "Foreign Disregarded Entity", shape: "roundedRect", fill: "#94d252" },
   { type: "U.S. Partnership", shape: "triangle", fill: "#d777c9" },
   { type: "Controlled Foreign Partnership", shape: "triangle", fill: "#9d67cc" },
-  { type: "Branch", shape: "ellipse", fill: "#91cc4e" },
-  { type: "Individual", shape: "circle", fill: "#cedce7" },
+  { type: "Branch", shape: "ellipse", fill: "#94d252" },
+  { type: "Individual", shape: "circle", fill: "#cfdde8" },
   { type: "Unrelated", shape: "octagon", fill: "#d7d7d7" },
+  { type: "Transactional Step", shape: "step", fill: "#f4f4f4" },
 ];
+
+const RELATIONSHIP_TYPES = {
+  equity: { label: "Equity", color: "#1f2d3d", dashed: false, markerEnd: false },
+  debt: { label: "Debt", color: "#1f2d3d", dashed: true, markerEnd: true },
+  action: { label: "Action Step", color: "#c41230", dashed: true, markerEnd: false },
+};
 
 const ENTITY_LOOKUP = Object.fromEntries(ENTITY_TYPES.map((x) => [x.type, x]));
 const svgNS = "http://www.w3.org/2000/svg";
@@ -33,13 +40,14 @@ const state = {
 
 const el = {
   palette: document.getElementById("entityPalette"),
+  legend: document.getElementById("legendList"),
   modeSwitcher: document.getElementById("modeSwitcher"),
   modeLabel: document.getElementById("modeLabel"),
   canvas: document.getElementById("canvas"),
   viewport: document.getElementById("viewport"),
   selectionHint: document.getElementById("selectionHint"),
   entityEditor: document.getElementById("entityEditor"),
-  relationshipEditor: document.getElementById("relationshipEditor"),
+  equityEditor: document.getElementById("equityEditor"),
   entityLabel: document.getElementById("entityLabel"),
   entityType: document.getElementById("entityType"),
   entityJurisdiction: document.getElementById("entityJurisdiction"),
@@ -67,11 +75,11 @@ const el = {
 };
 
 function shapeMetrics(shape) {
-  if (shape === "triangle") return { w: 150, h: 84 };
-  if (shape === "circle") return { w: 90, h: 90 };
-  if (shape === "ellipse") return { w: 128, h: 80 };
-  if (shape === "octagon") return { w: 90, h: 90 };
-  return { w: 172, h: 76 };
+  if (shape === "triangle") return { w: 136, h: 82 };
+  if (shape === "circle" || shape === "step") return { w: 88, h: 88 };
+  if (shape === "ellipse") return { w: 126, h: 76 };
+  if (shape === "octagon") return { w: 88, h: 88 };
+  return { w: 172, h: 74 };
 }
 
 function entityById(id) { return state.entities.find((x) => x.id === id); }
@@ -122,7 +130,7 @@ function addRelationship(fromId, toId, kind) {
 function setSelection(sel) {
   state.selection = sel;
   el.entityEditor.classList.add("hidden");
-  el.relationshipEditor.classList.add("hidden");
+  el.equityEditor.classList.add("hidden");
 
   if (!sel) {
     el.selectionHint.textContent = "Nothing selected";
@@ -226,7 +234,7 @@ function createShape(entity, dx = 0, dy = 0) {
     return nodes;
   }
 
-  if (shape === "circle") {
+  if (shape === "circle" || shape === "step") {
     const circle = document.createElementNS(svgNS, "circle");
     circle.setAttribute("cx", entity.x + entity.w / 2 + dx);
     circle.setAttribute("cy", entity.y + entity.h / 2 + dy);
@@ -240,7 +248,7 @@ function createShape(entity, dx = 0, dy = 0) {
   const oct = document.createElementNS(svgNS, "polygon");
   const x = entity.x + dx;
   const y = entity.y + dy;
-  const c = 18;
+  const c = 17;
   oct.setAttribute("points", `${x + c},${y} ${x + entity.w - c},${y} ${x + entity.w},${y + c} ${x + entity.w},${y + entity.h - c} ${x + entity.w - c},${y + entity.h} ${x + c},${y + entity.h} ${x},${y + entity.h - c} ${x},${y + c}`);
   oct.setAttribute("fill", fill);
   applyShapeStyle(oct, entity);
@@ -265,7 +273,6 @@ function drawRelationships() {
     const from = entityById(rel.fromId);
     const to = entityById(rel.toId);
     if (!from || !to) continue;
-
     const a = center(from);
     const b = center(to);
     const pathSpec = relationshipPath(rel, a, b);
@@ -286,11 +293,11 @@ function drawRelationships() {
     });
 
     const label = document.createElementNS(svgNS, "text");
-    label.setAttribute("x", pathSpec.labelX);
-    label.setAttribute("y", pathSpec.labelY);
+    label.setAttribute("x", labelX);
+    label.setAttribute("y", labelY);
     label.setAttribute("class", "rel-label");
-    label.setAttribute("fill", rel.color || "#202f4a");
-    label.textContent = rel.percent ? `${rel.label} (${rel.percent})` : rel.label;
+    label.setAttribute("fill", rel.color || spec.color);
+    label.textContent = rel.label;
 
     el.viewport.append(path, label);
 
@@ -318,11 +325,9 @@ function drawEntities() {
     group.setAttribute("class", `entity ${state.selection?.type === "entity" && state.selection.id === entity.id ? "selected" : ""}`);
     group.setAttribute("data-id", entity.id);
 
-    const stackCount = Math.max(1, Math.min(6, Number(entity.stackCount || 1)));
-    for (let i = stackCount - 1; i >= 0; i--) {
-      const dx = i * 8;
-      const dy = i * -8;
-      for (const node of createShape(entity, dx, dy)) group.appendChild(node);
+    const count = Math.max(1, Math.min(6, Number(entity.stackCount || 1)));
+    for (let i = count - 1; i >= 0; i--) {
+      for (const node of createShape(entity, i * 8, i * -8)) group.appendChild(node);
     }
 
     if (entity.showX) {
@@ -342,15 +347,14 @@ function drawEntities() {
     label.setAttribute("y", entity.y + entity.h / 2 - 2);
     label.setAttribute("text-anchor", "middle");
     label.setAttribute("font-weight", "600");
-    label.textContent = entity.label;
+    label.textContent = entity.shape === "step" ? String(entity.stepNumber || 1) : entity.label;
 
     const sub = document.createElementNS(svgNS, "text");
     sub.setAttribute("x", entity.x + entity.w / 2);
-    sub.setAttribute("y", entity.y + entity.h / 2 + 16);
+    sub.setAttribute("y", entity.y + entity.h / 2 + 15);
     sub.setAttribute("text-anchor", "middle");
-    sub.setAttribute("font-size", "12");
-    sub.setAttribute("fill", "#4d5d7a");
-    sub.textContent = entity.jurisdiction || entity.type;
+    sub.setAttribute("fill", "#546681");
+    sub.textContent = entity.shape === "step" ? "Transactional Step" : (entity.jurisdiction || entity.type);
 
     group.append(label, sub);
     el.viewport.appendChild(group);
@@ -382,7 +386,7 @@ function renderPaletteShape(spec) {
   return `<rect x="2" y="2" width="40" height="30" fill="${spec.fill}" stroke="#111" stroke-width="1.8"/>`;
 }
 
-function initPalette() {
+function initPaletteAndLegend() {
   el.palette.innerHTML = "";
   for (const spec of ENTITY_TYPES) {
     const button = document.createElement("button");
@@ -398,7 +402,6 @@ function initPalette() {
 function setupPointerEvents() {
   el.canvas.addEventListener("mousedown", (evt) => {
     const node = evt.target.closest("g.entity");
-
     if (!node) {
       state.panOrigin = { x: evt.clientX, y: evt.clientY, ox: state.panX, oy: state.panY };
       setSelection(null);
@@ -407,7 +410,6 @@ function setupPointerEvents() {
 
     const id = node.dataset.id;
     const entity = entityById(id);
-
     if (state.mode === "select") {
       setSelection({ type: "entity", id });
       state.dragEntityId = id;
@@ -452,7 +454,6 @@ function setupPointerEvents() {
 function refreshSaves() {
   const saves = JSON.parse(localStorage.getItem("tax-diagram-saves") || "[]");
   el.savedDiagrams.innerHTML = "";
-
   saves.forEach((save, idx) => {
     const node = el.template.content.firstElementChild.cloneNode(true);
     node.querySelector(".name").textContent = save.name;
@@ -535,6 +536,8 @@ function wireUi() {
 
   el.deleteRel.addEventListener("click", () => {
     if (state.selection?.type !== "relationship") return;
+    const rel = relById(state.selection.id);
+    if (!rel || rel.kind !== "equity") return;
     state.relationships = state.relationships.filter((x) => x.id !== state.selection.id);
     setSelection(null);
   });
@@ -569,21 +572,21 @@ function wireUi() {
     const svgBlob = new Blob([source], { type: "image/svg+xml;charset=utf-8" });
     const url = URL.createObjectURL(svgBlob);
     img.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = 1400;
-      canvas.height = 900;
-      const ctx = canvas.getContext("2d");
+      const c = document.createElement("canvas");
+      c.width = 1500;
+      c.height = 920;
+      const ctx = c.getContext("2d");
       ctx.fillStyle = "white";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillRect(0, 0, c.width, c.height);
       ctx.drawImage(img, 0, 0);
-      download("tax-diagram.png", canvas.toDataURL("image/png"));
+      download("tax-diagram.png", c.toDataURL("image/png"));
       URL.revokeObjectURL(url);
     };
     img.src = url;
   });
 }
 
-initPalette();
+initPaletteAndLegend();
 wireUi();
 setupPointerEvents();
 refreshSaves();
