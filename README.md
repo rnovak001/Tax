@@ -5,8 +5,8 @@ https://jyen2k.github.io/tax-diagram-tool/
 
 ## What's implemented
 
-- Entity palette to add legal entities.
-- Relationship modes (select, ownership line, transaction arrow).
+- Entity palette updated to match the provided legend colors/shapes (including U.S./foreign entities, individual, unrelated, branch).
+- Relationship modes (select, equity line, debt arrow).
 - SVG workspace with drag-to-move entities and drag blank space to pan.
 - Selection panel to edit entity and relationship labels.
 - Local save/load (up to 5 diagrams) with `localStorage`.

@@ -10,20 +10,15 @@
     <header>
       <h1>Tax Diagram Studio</h1>
       <p>Build legal structure charts.</p>
-      <p>Add entities, connect ownership, sketch transactions, then export a clean diagram.</p>
+      <p>Add entities, connect equity/debt lines, and export a clean diagram.</p>
     </header>
 
     <main class="layout">
       <aside class="panel left">
         <section>
           <h2>Entity Palette</h2>
-          <div class="button-grid" id="entityPalette">
-            <button data-type="Individual">Individual</button>
-            <button data-type="Partnership">Partnership</button>
-            <button data-type="Corporation">Corporation</button>
-            <button data-type="Trust">Trust</button>
-            <button data-type="LLC">LLC</button>
-          </div>
+          <p>Legend-matched color + shape set.</p>
+          <div class="palette-list" id="entityPalette"></div>
         </section>
 
         <section>
@@ -31,8 +26,8 @@
           <p>Select mode, then click two entities</p>
           <div class="button-row" id="modeSwitcher">
             <button data-mode="select" class="active">Select</button>
-            <button data-mode="ownership">Ownership Line</button>
-            <button data-mode="transaction">Transaction Arrow</button>
+            <button data-mode="ownership">Equity Line</button>
+            <button data-mode="transaction">Debt Arrow</button>
           </div>
           <p id="modeLabel">Current mode: Select</p>
         </section>
