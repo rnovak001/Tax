@@ -11,11 +11,7 @@ body { margin: 0; background: #f5f6f8; }
   color: #f6fbff;
   padding: 1rem 1.4rem;
 }
-.brand-row { display: flex; align-items: center; gap: 0.7rem; }
-.brand-mark { width: 16px; height: 16px; border: 2px solid #fff; background: #c41230; }
-.brand { margin: 0; text-transform: uppercase; font-weight: 700; letter-spacing: 0.08em; }
-.sub-brand { margin: 0; color: #c8d9eb; font-size: 0.85rem; }
-.site-header h1 { margin: 0.6rem 0 0.3rem; font-family: Georgia, serif; font-size: 1.7rem; }
+.site-header h1 { margin: 0 0 0.3rem; font-family: Georgia, serif; font-size: 1.7rem; }
 .site-header > p { margin: 0; color: #d9e8f7; }
 
 .layout { display: grid; grid-template-columns: 340px 1fr 330px; gap: 1rem; padding: 1rem; }
@@ -46,8 +42,8 @@ button.active { background: #0f2d52; border-color: #0f2d52; color: #fff; }
 label { display: block; margin: 0.45rem 0; font-size: 0.92rem; }
 input, select { width: 100%; margin-top: 0.2rem; padding: 0.42rem; border: 1px solid #c7d3e2; border-radius: 7px; }
 
-.palette-list, .legend-list { display: grid; gap: 0.45rem; }
-.legend-item, .palette-item {
+.palette-list { display: grid; gap: 0.45rem; }
+.palette-item {
   border: 1px solid #dde5ef;
   border-radius: 8px;
   padding: 0.35rem;
@@ -57,8 +53,8 @@ input, select { width: 100%; margin-top: 0.2rem; padding: 0.42rem; border: 1px s
   align-items: center;
   text-align: left;
 }
-.palette-item svg, .legend-item svg { width: 48px; height: 36px; }
-.palette-item .title, .legend-item .title { font-size: 0.84rem; font-weight: 600; }
+.palette-item svg { width: 48px; height: 36px; }
+.palette-item .title { font-size: 0.84rem; font-weight: 600; }
 
 #canvas {
   width: 100%;

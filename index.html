@@ -8,13 +8,6 @@
   </head>
   <body>
     <header class="site-header">
-      <div class="brand-row">
-        <div class="brand-mark" aria-hidden="true"></div>
-        <div>
-          <p class="brand">Tax Diagram Studio</p>
-          <p class="sub-brand">Bain-inspired visual language for tax structuring</p>
-        </div>
-      </div>
       <h1>Organizational Chart Builder</h1>
       <p>Create and edit entity diagrams with the exact legend semantics shown in your reference.</p>
     </header>
@@ -29,14 +22,12 @@
 
         <section>
           <h2>Connection Modes</h2>
-          <p>Choose a legend line type, then click two entities.</p>
+          <p>Choose a line type, then click two entities.</p>
           <div class="button-grid" id="modeSwitcher">
             <button data-mode="select" class="active">Select</button>
             <button data-mode="equity">Equity</button>
             <button data-mode="debt">Debt</button>
-            <button data-mode="separator">Separator</button>
             <button data-mode="action">Action Step</button>
-            <button data-mode="liquidation">Liquidation</button>
           </div>
           <p id="modeLabel">Current mode: Select</p>
         </section>
@@ -62,9 +53,6 @@
           <defs>
             <marker id="arrowhead-dark" markerWidth="9" markerHeight="6" refX="8" refY="3" orient="auto">
               <polygon points="0 0, 9 3, 0 6" fill="#1f2d3d"></polygon>
-            </marker>
-            <marker id="arrowhead-red" markerWidth="9" markerHeight="6" refX="8" refY="3" orient="auto">
-              <polygon points="0 0, 9 3, 0 6" fill="#c41230"></polygon>
             </marker>
           </defs>
           <g id="viewport"></g>
@@ -92,19 +80,11 @@
           <button id="deleteEntity">Delete Entity</button>
         </section>
 
-        <section id="relationshipEditor" class="hidden">
-          <h3>Edit Relationship</h3>
-          <label>Label <input id="relLabel" /></label>
-          <label>Kind
-            <select id="relKind">
-              <option value="equity">Equity</option>
-              <option value="debt">Debt</option>
-              <option value="separator">Separator</option>
-              <option value="action">Action Step</option>
-              <option value="liquidation">Liquidation</option>
-            </select>
-          </label>
-          <button id="deleteRel">Delete Relationship</button>
+        <section id="equityEditor" class="hidden">
+          <h3>Edit Equity Line</h3>
+          <label>Line Label <input id="equityLabel" /></label>
+          <label>Line Color <input id="equityColor" type="color" value="#1f2d3d" /></label>
+          <button id="deleteRel">Delete Equity Line</button>
         </section>
       </aside>
     </main>
