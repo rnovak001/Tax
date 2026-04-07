@@ -1,5 +1,6 @@
 const ENTITY_TYPES = [
   { type: "U.S. Corporation", shape: "rect", fill: "#ffffff", description: "U.S. Corporation" },
+  { type: "U.S. Corporation", shape: "rect", fill: "#d9d9d9", description: "U.S. Corporation" },
   { type: "Controlled Foreign Corporation", shape: "rect", fill: "#f6bf00", description: "Controlled Foreign Corporation" },
   { type: "U.S. Disregarded Entity", shape: "roundedRect", fill: "#69d1d3", description: "U.S. Disregarded Entity" },
   { type: "Foreign Disregarded Entity", shape: "roundedRect", fill: "#91cc4e", description: "Foreign Disregarded Entity" },
