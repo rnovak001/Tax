@@ -33,6 +33,9 @@ const state = {
   dragEntityId: null,
   dragOrigin: null,
   panOrigin: null,
+  showTxnLegend: false,
+  txnLegendArrow: "Tx",
+  txnLegendTail: "From",
 };
 
 const el = {
@@ -49,9 +52,21 @@ const el = {
   entityType: document.getElementById("entityType"),
   entityJurisdiction: document.getElementById("entityJurisdiction"),
   entityStackCount: document.getElementById("entityStackCount"),
-  entityStepNumber: document.getElementById("entityStepNumber"),
-  equityLabel: document.getElementById("equityLabel"),
-  equityColor: document.getElementById("equityColor"),
+  entityLineStyle: document.getElementById("entityLineStyle"),
+  entityShading: document.getElementById("entityShading"),
+  entityX: document.getElementById("entityX"),
+  innerLineStyle: document.getElementById("innerLineStyle"),
+  innerShading: document.getElementById("innerShading"),
+  relLabel: document.getElementById("relLabel"),
+  relPercent: document.getElementById("relPercent"),
+  relKind: document.getElementById("relKind"),
+  relColor: document.getElementById("relColor"),
+  relLineStyle: document.getElementById("relLineStyle"),
+  relArrowBoth: document.getElementById("relArrowBoth"),
+  relReverseArrow: document.getElementById("relReverseArrow"),
+  showTxnLegend: document.getElementById("showTxnLegend"),
+  txnLegendArrow: document.getElementById("txnLegendArrow"),
+  txnLegendTail: document.getElementById("txnLegendTail"),
   deleteEntity: document.getElementById("deleteEntity"),
   deleteRel: document.getElementById("deleteRel"),
   saveBtn: document.getElementById("saveBtn"),
@@ -71,15 +86,6 @@ function entityById(id) { return state.entities.find((x) => x.id === id); }
 function relById(id) { return state.relationships.find((x) => x.id === id); }
 function center(e) { return { x: e.x + e.w / 2, y: e.y + e.h / 2 }; }
 
-function elbowPath(a, b) {
-  const midX = (a.x + b.x) / 2;
-  return {
-    d: `M ${a.x} ${a.y} L ${midX} ${a.y} L ${midX} ${b.y} L ${b.x} ${b.y}`,
-    labelX: midX + 8,
-    labelY: (a.y + b.y) / 2 - 9,
-  };
-}
-
 function addEntity(type) {
   const spec = ENTITY_LOOKUP[type] || ENTITY_TYPES[0];
   const dims = shapeMetrics(spec.shape);
@@ -91,9 +97,13 @@ function addEntity(type) {
     shape: spec.shape,
     fill: spec.fill,
     stackCount: 1,
-    stepNumber: 1,
-    x: 180 + (state.entities.length % 6) * 190,
-    y: 130 + Math.floor(state.entities.length / 6) * 130,
+    lineStyle: "solid",
+    shaded: false,
+    showX: false,
+    innerLineStyle: "solid",
+    innerShaded: false,
+    x: 170 + (state.entities.length % 6) * 190,
+    y: 130 + Math.floor(state.entities.length / 6) * 135,
     w: dims.w,
     h: dims.h,
   });
@@ -101,14 +111,18 @@ function addEntity(type) {
 }
 
 function addRelationship(fromId, toId, kind) {
-  const spec = RELATIONSHIP_TYPES[kind] || RELATIONSHIP_TYPES.equity;
+  const isOwnership = kind === "ownership";
   state.relationships.push({
     id: uid(),
     fromId,
     toId,
     kind,
-    label: spec.label,
-    color: spec.color,
+    label: isOwnership ? "Ownership" : "Transaction",
+    percent: "",
+    color: "#202f4a",
+    dashed: !isOwnership,
+    arrowBoth: false,
+    reverseArrow: !isOwnership,
   });
   render();
 }
@@ -119,7 +133,7 @@ function setSelection(sel) {
   el.equityEditor.classList.add("hidden");
 
   if (!sel) {
-    el.selectionHint.textContent = "Nothing selected.";
+    el.selectionHint.textContent = "Nothing selected";
     render();
     return;
   }
@@ -133,31 +147,38 @@ function setSelection(sel) {
     el.entityType.value = entity.type;
     el.entityJurisdiction.value = entity.jurisdiction;
     el.entityStackCount.value = entity.stackCount;
-    el.entityStepNumber.value = entity.stepNumber || 1;
-  }
-
-  if (sel.type === "relationship") {
+    el.entityLineStyle.value = entity.lineStyle || "solid";
+    el.entityShading.value = entity.shaded ? "shaded" : "none";
+    el.entityX.checked = Boolean(entity.showX);
+    el.innerLineStyle.value = entity.innerLineStyle || "solid";
+    el.innerShading.value = entity.innerShaded ? "shaded" : "none";
+  } else {
     const rel = relById(sel.id);
     if (!rel) return;
     el.selectionHint.textContent = `Selected relationship: ${rel.label}`;
-    if (rel.kind === "equity") {
-      el.equityEditor.classList.remove("hidden");
-      el.equityLabel.value = rel.label;
-      el.equityColor.value = rel.color || "#1f2d3d";
-    }
+    el.relationshipEditor.classList.remove("hidden");
+    el.relLabel.value = rel.label;
+    el.relPercent.value = rel.percent;
+    el.relKind.value = rel.kind;
+    el.relColor.value = rel.color;
+    el.relLineStyle.value = rel.dashed ? "dashed" : "solid";
+    el.relArrowBoth.checked = Boolean(rel.arrowBoth);
+    el.relReverseArrow.checked = Boolean(rel.reverseArrow);
   }
 
   render();
 }
 
+function applyShapeStyle(node, entity, isInner = false) {
+  const strokeDasharray = (isInner ? entity.innerLineStyle : entity.lineStyle) === "dashed" ? "6 4" : null;
+  node.setAttribute("class", isInner ? "inner-shape" : "shape");
+  if (strokeDasharray) node.setAttribute("stroke-dasharray", strokeDasharray);
+}
+
 function createShape(entity, dx = 0, dy = 0) {
   const shape = entity.shape;
   const nodes = [];
-  const styleShape = (node, fill) => {
-    node.setAttribute("fill", fill);
-    node.setAttribute("class", "shape");
-    nodes.push(node);
-  };
+  const fill = entity.shaded ? shade(entity.fill, -0.1) : entity.fill;
 
   if (shape === "rect") {
     const rect = document.createElementNS(svgNS, "rect");
@@ -165,7 +186,9 @@ function createShape(entity, dx = 0, dy = 0) {
     rect.setAttribute("y", entity.y + dy);
     rect.setAttribute("width", entity.w);
     rect.setAttribute("height", entity.h);
-    styleShape(rect, entity.fill);
+    rect.setAttribute("fill", fill);
+    applyShapeStyle(rect, entity);
+    nodes.push(rect);
     return nodes;
   }
 
@@ -175,14 +198,17 @@ function createShape(entity, dx = 0, dy = 0) {
     rect.setAttribute("y", entity.y + dy);
     rect.setAttribute("width", entity.w);
     rect.setAttribute("height", entity.h);
-    styleShape(rect, entity.fill);
+    rect.setAttribute("fill", fill);
+    applyShapeStyle(rect, entity);
+    nodes.push(rect);
+
     const oval = document.createElementNS(svgNS, "ellipse");
     oval.setAttribute("cx", entity.x + entity.w / 2 + dx);
     oval.setAttribute("cy", entity.y + entity.h / 2 + dy);
     oval.setAttribute("rx", entity.w / 2 - 2);
     oval.setAttribute("ry", entity.h / 2 - 2);
-    oval.setAttribute("fill", "none");
-    oval.setAttribute("class", "shape");
+    oval.setAttribute("fill", entity.innerShaded ? "rgba(0,0,0,0.08)" : "none");
+    applyShapeStyle(oval, entity, true);
     nodes.push(oval);
     return nodes;
   }
@@ -190,7 +216,9 @@ function createShape(entity, dx = 0, dy = 0) {
   if (shape === "triangle") {
     const poly = document.createElementNS(svgNS, "polygon");
     poly.setAttribute("points", `${entity.x + entity.w / 2 + dx},${entity.y + dy} ${entity.x + entity.w + dx},${entity.y + entity.h + dy} ${entity.x + dx},${entity.y + entity.h + dy}`);
-    styleShape(poly, entity.fill);
+    poly.setAttribute("fill", fill);
+    applyShapeStyle(poly, entity);
+    nodes.push(poly);
     return nodes;
   }
 
@@ -200,7 +228,9 @@ function createShape(entity, dx = 0, dy = 0) {
     ellipse.setAttribute("cy", entity.y + entity.h / 2 + dy);
     ellipse.setAttribute("rx", entity.w / 2);
     ellipse.setAttribute("ry", entity.h / 2);
-    styleShape(ellipse, entity.fill);
+    ellipse.setAttribute("fill", fill);
+    applyShapeStyle(ellipse, entity);
+    nodes.push(ellipse);
     return nodes;
   }
 
@@ -209,7 +239,9 @@ function createShape(entity, dx = 0, dy = 0) {
     circle.setAttribute("cx", entity.x + entity.w / 2 + dx);
     circle.setAttribute("cy", entity.y + entity.h / 2 + dy);
     circle.setAttribute("r", Math.min(entity.w, entity.h) / 2);
-    styleShape(circle, entity.fill);
+    circle.setAttribute("fill", fill);
+    applyShapeStyle(circle, entity);
+    nodes.push(circle);
     return nodes;
   }
 
@@ -218,8 +250,22 @@ function createShape(entity, dx = 0, dy = 0) {
   const y = entity.y + dy;
   const c = 17;
   oct.setAttribute("points", `${x + c},${y} ${x + entity.w - c},${y} ${x + entity.w},${y + c} ${x + entity.w},${y + entity.h - c} ${x + entity.w - c},${y + entity.h} ${x + c},${y + entity.h} ${x},${y + entity.h - c} ${x},${y + c}`);
-  styleShape(oct, entity.fill);
+  oct.setAttribute("fill", fill);
+  applyShapeStyle(oct, entity);
+  nodes.push(oct);
   return nodes;
+}
+
+function relationshipPath(rel, a, b) {
+  if (rel.kind !== "ownership") {
+    return { d: `M ${a.x} ${a.y} L ${b.x} ${b.y}`, labelX: (a.x + b.x) / 2, labelY: (a.y + b.y) / 2 };
+  }
+  const midX = (a.x + b.x) / 2;
+  return {
+    d: `M ${a.x} ${a.y} L ${midX} ${a.y} L ${midX} ${b.y} L ${b.x} ${b.y}`,
+    labelX: midX + 6,
+    labelY: (a.y + b.y) / 2 - 8,
+  };
 }
 
 function drawRelationships() {
@@ -229,32 +275,19 @@ function drawRelationships() {
     if (!from || !to) continue;
     const a = center(from);
     const b = center(to);
-    const spec = RELATIONSHIP_TYPES[rel.kind] || RELATIONSHIP_TYPES.equity;
+    const pathSpec = relationshipPath(rel, a, b);
+    const path = document.createElementNS(svgNS, "path");
+    path.setAttribute("d", pathSpec.d);
+    path.setAttribute("class", "rel-line");
+    path.setAttribute("stroke", rel.color || "#202f4a");
+    if (rel.dashed) path.setAttribute("stroke-dasharray", "8 5");
 
-    let line;
-    let labelX = (a.x + b.x) / 2 + 8;
-    let labelY = (a.y + b.y) / 2 - 9;
+    const arrowStart = rel.arrowBoth || rel.reverseArrow;
+    const arrowEnd = rel.arrowBoth || !rel.reverseArrow;
+    if (arrowStart) path.setAttribute("marker-start", "url(#arrowhead)");
+    if (arrowEnd) path.setAttribute("marker-end", "url(#arrowhead)");
 
-    if (rel.kind === "equity") {
-      const elbow = elbowPath(a, b);
-      line = document.createElementNS(svgNS, "path");
-      line.setAttribute("d", elbow.d);
-      labelX = elbow.labelX;
-      labelY = elbow.labelY;
-    } else {
-      line = document.createElementNS(svgNS, "line");
-      line.setAttribute("x1", a.x);
-      line.setAttribute("y1", a.y);
-      line.setAttribute("x2", b.x);
-      line.setAttribute("y2", b.y);
-    }
-
-    line.setAttribute("class", "rel-line");
-    line.setAttribute("stroke", rel.color || spec.color);
-    if (spec.dashed) line.setAttribute("stroke-dasharray", "8 5");
-    if (spec.markerEnd) line.setAttribute("marker-end", "url(#arrowhead-dark)");
-
-    line.addEventListener("click", (evt) => {
+    path.addEventListener("click", (evt) => {
       evt.stopPropagation();
       setSelection({ type: "relationship", id: rel.id });
     });
@@ -266,7 +299,23 @@ function drawRelationships() {
     label.setAttribute("fill", rel.color || spec.color);
     label.textContent = rel.label;
 
-    el.viewport.append(line, label);
+    el.viewport.append(path, label);
+
+    if (state.showTxnLegend && rel.kind === "transaction") {
+      const t1 = document.createElementNS(svgNS, "text");
+      t1.setAttribute("x", a.x - 8);
+      t1.setAttribute("y", a.y - 10);
+      t1.setAttribute("text-anchor", "end");
+      t1.setAttribute("font-size", "11");
+      t1.textContent = state.txnLegendTail;
+
+      const t2 = document.createElementNS(svgNS, "text");
+      t2.setAttribute("x", b.x + 8);
+      t2.setAttribute("y", b.y - 10);
+      t2.setAttribute("font-size", "11");
+      t2.textContent = state.txnLegendArrow;
+      el.viewport.append(t1, t2);
+    }
   }
 }
 
@@ -279,6 +328,18 @@ function drawEntities() {
     const count = Math.max(1, Math.min(6, Number(entity.stackCount || 1)));
     for (let i = count - 1; i >= 0; i--) {
       for (const node of createShape(entity, i * 8, i * -8)) group.appendChild(node);
+    }
+
+    if (entity.showX) {
+      const x1 = document.createElementNS(svgNS, "line");
+      const x2 = document.createElementNS(svgNS, "line");
+      x1.setAttribute("class", "entity-x");
+      x2.setAttribute("class", "entity-x");
+      x1.setAttribute("x1", entity.x + 8); x1.setAttribute("y1", entity.y + 8);
+      x1.setAttribute("x2", entity.x + entity.w - 8); x1.setAttribute("y2", entity.y + entity.h - 8);
+      x2.setAttribute("x1", entity.x + entity.w - 8); x2.setAttribute("y1", entity.y + 8);
+      x2.setAttribute("x2", entity.x + 8); x2.setAttribute("y2", entity.y + entity.h - 8);
+      group.append(x1, x2);
     }
 
     const label = document.createElementNS(svgNS, "text");
@@ -307,23 +368,32 @@ function render() {
   drawEntities();
 }
 
-function shapePreview(spec) {
-  if (spec.shape === "triangle") return `<polygon points="24,2 44,33 4,33" fill="${spec.fill}" stroke="#111"/>`;
-  if (spec.shape === "circle" || spec.shape === "step") return `<circle cx="24" cy="18" r="15" fill="${spec.fill}" stroke="#111"/>`;
-  if (spec.shape === "ellipse") return `<ellipse cx="24" cy="18" rx="20" ry="13" fill="${spec.fill}" stroke="#111"/>`;
-  if (spec.shape === "octagon") return `<polygon points="13,2 35,2 46,12 46,24 35,34 13,34 2,24 2,12" fill="${spec.fill}" stroke="#111"/>`;
-  if (spec.shape === "roundedRect") return `<rect x="2" y="2" width="44" height="32" fill="${spec.fill}" stroke="#111"/><ellipse cx="24" cy="18" rx="21" ry="14" fill="none" stroke="#111"/>`;
-  return `<rect x="2" y="2" width="44" height="32" fill="${spec.fill}" stroke="#111"/>`;
+function shade(hex, pct) {
+  const n = parseInt(hex.slice(1), 16);
+  const amt = Math.round(2.55 * (pct * 100));
+  const r = Math.min(255, Math.max(0, (n >> 16) + amt));
+  const g = Math.min(255, Math.max(0, ((n >> 8) & 0x00ff) + amt));
+  const b = Math.min(255, Math.max(0, (n & 0x0000ff) + amt));
+  return `#${(1 << 24 | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
+}
+
+function renderPaletteShape(spec) {
+  if (spec.shape === "triangle") return `<polygon points="22,2 42,30 2,30" fill="${spec.fill}" stroke="#111" stroke-width="1.8"/>`;
+  if (spec.shape === "circle") return `<circle cx="22" cy="17" r="14" fill="${spec.fill}" stroke="#111" stroke-width="1.8"/>`;
+  if (spec.shape === "ellipse") return `<ellipse cx="22" cy="17" rx="20" ry="13" fill="${spec.fill}" stroke="#111" stroke-width="1.8"/>`;
+  if (spec.shape === "octagon") return `<polygon points="12,2 32,2 42,12 42,22 32,32 12,32 2,22 2,12" fill="${spec.fill}" stroke="#111" stroke-width="1.8"/>`;
+  if (spec.shape === "roundedRect") return `<rect x="2" y="2" width="40" height="30" fill="${spec.fill}" stroke="#111" stroke-width="1.8"/><ellipse cx="22" cy="17" rx="19" ry="13" fill="none" stroke="#111" stroke-width="1.8"/>`;
+  return `<rect x="2" y="2" width="40" height="30" fill="${spec.fill}" stroke="#111" stroke-width="1.8"/>`;
 }
 
 function initPaletteAndLegend() {
   el.palette.innerHTML = "";
   for (const spec of ENTITY_TYPES) {
-    const b = document.createElement("button");
-    b.className = "palette-item";
-    b.dataset.type = spec.type;
-    b.innerHTML = `<svg viewBox="0 0 48 36">${shapePreview(spec)}</svg><span class="title">${spec.type}</span>`;
-    el.palette.appendChild(b);
+    const button = document.createElement("button");
+    button.className = "palette-item";
+    button.dataset.type = spec.type;
+    button.innerHTML = `<svg viewBox="0 0 44 34" aria-hidden="true">${renderPaletteShape(spec)}</svg><span><span class="title">${spec.type}</span></span>`;
+    el.palette.appendChild(button);
   }
 
   el.entityType.innerHTML = ENTITY_TYPES.map((item) => `<option value="${item.type}">${item.type}</option>`).join("");
@@ -422,60 +492,40 @@ function wireUi() {
     el.modeLabel.textContent = `Current mode: ${btn.textContent}`;
   });
 
-  el.entityLabel.addEventListener("input", () => {
-    const item = entityById(state.selection?.id);
-    if (!item) return;
-    item.label = el.entityLabel.value;
-    render();
-  });
+  el.showTxnLegend.addEventListener("change", () => { state.showTxnLegend = el.showTxnLegend.checked; render(); });
+  el.txnLegendArrow.addEventListener("input", () => { state.txnLegendArrow = el.txnLegendArrow.value; render(); });
+  el.txnLegendTail.addEventListener("input", () => { state.txnLegendTail = el.txnLegendTail.value; render(); });
 
+  el.entityLabel.addEventListener("input", () => { const item = entityById(state.selection?.id); if (item) { item.label = el.entityLabel.value; render(); } });
   el.entityType.addEventListener("input", () => {
     const item = entityById(state.selection?.id);
     if (!item) return;
     const spec = ENTITY_LOOKUP[el.entityType.value];
     const dims = shapeMetrics(spec.shape);
-    item.type = spec.type;
-    item.shape = spec.shape;
-    item.fill = spec.fill;
-    item.w = dims.w;
-    item.h = dims.h;
-    render();
+    item.type = spec.type; item.shape = spec.shape; item.fill = spec.fill; item.w = dims.w; item.h = dims.h; render();
   });
+  el.entityJurisdiction.addEventListener("input", () => { const item = entityById(state.selection?.id); if (item) { item.jurisdiction = el.entityJurisdiction.value; render(); } });
+  el.entityStackCount.addEventListener("input", () => { const item = entityById(state.selection?.id); if (item) { item.stackCount = Math.max(1, Math.min(6, Number(el.entityStackCount.value || 1))); render(); } });
+  el.entityLineStyle.addEventListener("input", () => { const item = entityById(state.selection?.id); if (item) { item.lineStyle = el.entityLineStyle.value; render(); } });
+  el.entityShading.addEventListener("input", () => { const item = entityById(state.selection?.id); if (item) { item.shaded = el.entityShading.value === "shaded"; render(); } });
+  el.entityX.addEventListener("change", () => { const item = entityById(state.selection?.id); if (item) { item.showX = el.entityX.checked; render(); } });
+  el.innerLineStyle.addEventListener("input", () => { const item = entityById(state.selection?.id); if (item) { item.innerLineStyle = el.innerLineStyle.value; render(); } });
+  el.innerShading.addEventListener("input", () => { const item = entityById(state.selection?.id); if (item) { item.innerShaded = el.innerShading.value === "shaded"; render(); } });
 
-  el.entityJurisdiction.addEventListener("input", () => {
-    const item = entityById(state.selection?.id);
-    if (!item) return;
-    item.jurisdiction = el.entityJurisdiction.value;
-    render();
-  });
-
-  el.entityStackCount.addEventListener("input", () => {
-    const item = entityById(state.selection?.id);
-    if (!item) return;
-    item.stackCount = Math.max(1, Math.min(6, Number(el.entityStackCount.value || 1)));
-    render();
-  });
-
-  el.entityStepNumber.addEventListener("input", () => {
-    const item = entityById(state.selection?.id);
-    if (!item) return;
-    item.stepNumber = Math.max(1, Math.min(99, Number(el.entityStepNumber.value || 1)));
-    render();
-  });
-
-  el.equityLabel.addEventListener("input", () => {
+  el.relLabel.addEventListener("input", () => { const rel = relById(state.selection?.id); if (rel) { rel.label = el.relLabel.value; render(); } });
+  el.relPercent.addEventListener("input", () => { const rel = relById(state.selection?.id); if (rel) { rel.percent = el.relPercent.value; render(); } });
+  el.relKind.addEventListener("input", () => {
     const rel = relById(state.selection?.id);
-    if (!rel || rel.kind !== "equity") return;
-    rel.label = el.equityLabel.value;
+    if (!rel) return;
+    rel.kind = el.relKind.value;
+    rel.dashed = rel.kind === "transaction";
+    if (rel.kind === "transaction") rel.reverseArrow = true;
     render();
   });
-
-  el.equityColor.addEventListener("input", () => {
-    const rel = relById(state.selection?.id);
-    if (!rel || rel.kind !== "equity") return;
-    rel.color = el.equityColor.value;
-    render();
-  });
+  el.relColor.addEventListener("input", () => { const rel = relById(state.selection?.id); if (rel) { rel.color = el.relColor.value; render(); } });
+  el.relLineStyle.addEventListener("input", () => { const rel = relById(state.selection?.id); if (rel) { rel.dashed = el.relLineStyle.value === "dashed"; render(); } });
+  el.relArrowBoth.addEventListener("change", () => { const rel = relById(state.selection?.id); if (rel) { rel.arrowBoth = el.relArrowBoth.checked; render(); } });
+  el.relReverseArrow.addEventListener("change", () => { const rel = relById(state.selection?.id); if (rel) { rel.reverseArrow = el.relReverseArrow.checked; render(); } });
 
   el.deleteEntity.addEventListener("click", () => {
     if (state.selection?.type !== "entity") return;
@@ -501,7 +551,11 @@ function wireUi() {
     const saves = JSON.parse(localStorage.getItem("tax-diagram-saves") || "[]");
     saves.unshift({
       name: `Diagram ${new Date().toLocaleString()}`,
-      data: { mode: "select", zoom: state.zoom, panX: state.panX, panY: state.panY, entities: state.entities, relationships: state.relationships },
+      data: {
+        mode: "select", zoom: state.zoom, panX: state.panX, panY: state.panY,
+        entities: state.entities, relationships: state.relationships,
+        showTxnLegend: state.showTxnLegend, txnLegendArrow: state.txnLegendArrow, txnLegendTail: state.txnLegendTail,
+      },
     });
     localStorage.setItem("tax-diagram-saves", JSON.stringify(saves.slice(0, 5)));
     refreshSaves();
