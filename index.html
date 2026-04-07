@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tax Diagram Studio</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Tax Diagram Studio</h1>
+      <p>Build legal structure charts.</p>
+      <p>Add entities, connect equity/debt lines, and export a clean diagram.</p>
+    </header>
+
+    <main class="layout">
+      <aside class="panel left">
+        <section>
+          <h2>Entity Palette</h2>
+          <p>Legend-matched color + shape set.</p>
+          <div class="palette-list" id="entityPalette"></div>
+        </section>
+
+        <section>
+          <h2>Relationships</h2>
+          <p>Select mode, then click two entities</p>
+          <div class="button-row" id="modeSwitcher">
+            <button data-mode="select" class="active">Select</button>
+            <button data-mode="ownership">Equity Line</button>
+            <button data-mode="transaction">Debt Arrow</button>
+          </div>
+          <p id="modeLabel">Current mode: Select</p>
+        </section>
+
+        <section>
+          <h2>Saved Diagrams</h2>
+          <p>Up to 5. Saves stay in this browser on this computer.</p>
+          <div id="savedDiagrams"></div>
+          <button id="saveBtn">Save Current Diagram In Browser</button>
+        </section>
+      </aside>
+
+      <section class="workspace-wrap">
+        <h2>Diagram Workspace</h2>
+        <div class="toolbar">
+          <button id="zoomOut">Zoom Out</button>
+          <button id="zoomReset">100%</button>
+          <button id="zoomIn">Zoom In</button>
+          <button id="clearBtn">Clear</button>
+          <button id="exportSvg">Export SVG</button>
+          <button id="exportPng">Export PNG</button>
+        </div>
+        <svg id="canvas" viewBox="0 0 1400 900" aria-label="Diagram canvas">
+          <defs>
+            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+              <polygon points="0 0, 10 3.5, 0 7"></polygon>
+            </marker>
+          </defs>
+          <g id="viewport"></g>
+        </svg>
+      </section>
+
+      <aside class="panel right">
+        <section>
+          <h2>Selection</h2>
+          <p id="selectionHint">Nothing selected.</p>
+        </section>
+
+        <section id="entityEditor" class="hidden">
+          <h3>Edit Entity</h3>
+          <label>Label <input id="entityLabel" /></label>
+          <label>Type <select id="entityType"></select></label>
+          <label>Jurisdiction <input id="entityJurisdiction" /></label>
+          <label>Stack Count <input id="entityStackCount" type="number" min="1" max="6" /></label>
+          <button id="deleteEntity">Delete Entity</button>
+        </section>
+
+        <section id="relationshipEditor" class="hidden">
+          <h3>Edit Relationship</h3>
+          <label>Label <input id="relLabel" /></label>
+          <label>Ownership % <input id="relPercent" /></label>
+          <label>Kind
+            <select id="relKind">
+              <option value="ownership">Equity Line</option>
+              <option value="transaction">Debt Arrow</option>
+            </select>
+          </label>
+          <label>Color
+            <select id="relColor">
+              <option value="#202f4a">Black</option>
+              <option value="#d11f1f">Red</option>
+              <option value="#1f55d1">Blue</option>
+            </select>
+          </label>
+          <label>Line Style
+            <select id="relLineStyle">
+              <option value="solid">Solid</option>
+              <option value="dashed">Dashed</option>
+            </select>
+          </label>
+          <label>Connector Style
+            <select id="relConnector">
+              <option value="straight">Straight</option>
+              <option value="elbow">Elbow</option>
+            </select>
+          </label>
+          <label><input type="checkbox" id="relArrowStart" /> Arrowhead at start</label>
+          <label><input type="checkbox" id="relArrowEnd" /> Arrowhead at end</label>
+          <button id="deleteRel">Delete Relationship</button>
+        </section>
+      </aside>
+    </main>
+
+    <template id="saveItemTemplate">
+      <div class="save-item">
+        <span class="name"></span>
+        <button class="load">Load</button>
+        <button class="delete">Delete</button>
+      </div>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>
