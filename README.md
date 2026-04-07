@@ -12,6 +12,7 @@ https://jyen2k.github.io/tax-diagram-tool/
 - Shape stacking control (1–6) to represent multiple entities as noted in the legend.
 - Local save/load (up to 5 diagrams) with `localStorage`.
 - Export to SVG and PNG.
+- Visual refresh with a Bain-inspired executive look (deep blue hero, premium card layout, cleaner typography).
 - Equity lines now support straight/elbow connectors, editable text labels, line color/style controls, and optional arrowheads at either end.
 
 ## Run locally
