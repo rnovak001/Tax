@@ -22,9 +22,9 @@
         </section>
 
         <section>
-          <h2>Relationships</h2>
-          <p>Select mode, then click two entities</p>
-          <div class="button-row" id="modeSwitcher">
+          <h2>Connection Modes</h2>
+          <p>Choose a line type, then click two entities.</p>
+          <div class="button-grid" id="modeSwitcher">
             <button data-mode="select" class="active">Select</button>
             <button data-mode="ownership">Ownership Line</button>
             <button data-mode="transaction">Debt Line</button>
@@ -38,7 +38,7 @@
         <section>
           <h2>Saved Diagrams</h2>
           <div id="savedDiagrams"></div>
-          <button id="saveBtn">Save Current Diagram In Browser</button>
+          <button id="saveBtn">Save Diagram</button>
         </section>
       </aside>
 
@@ -53,10 +53,10 @@
           <button id="exportPng">Export PNG</button>
           <button id="addDescription">Add Description</button>
         </div>
-        <svg id="canvas" viewBox="0 0 1400 900" aria-label="Diagram canvas">
+        <svg id="canvas" viewBox="0 0 1500 920" aria-label="Diagram canvas">
           <defs>
-            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-              <polygon points="0 0, 10 3.5, 0 7"></polygon>
+            <marker id="arrowhead-dark" markerWidth="9" markerHeight="6" refX="8" refY="3" orient="auto">
+              <polygon points="0 0, 9 3, 0 6" fill="#1f2d3d"></polygon>
             </marker>
           </defs>
           <g id="viewport"></g>

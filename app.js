@@ -10,6 +10,12 @@ const ENTITY_TYPES = [
   { type: "Unrelated", shape: "octagon", fill: "#d7d7d7" },
 ];
 
+const RELATIONSHIP_TYPES = {
+  equity: { label: "Equity", color: "#1f2d3d", dashed: false, markerEnd: false },
+  debt: { label: "Debt", color: "#1f2d3d", dashed: true, markerEnd: true },
+  action: { label: "Action Step", color: "#c41230", dashed: true, markerEnd: false },
+};
+
 const ENTITY_LOOKUP = Object.fromEntries(ENTITY_TYPES.map((x) => [x.type, x]));
 const SIDES = ["top", "right", "bottom", "left"];
 const svgNS = "http://www.w3.org/2000/svg";
@@ -29,10 +35,14 @@ const state = {
   dragDescId: null,
   dragOrigin: null,
   panOrigin: null,
+  showTxnLegend: false,
+  txnLegendArrow: "Tx",
+  txnLegendTail: "From",
 };
 
 const el = {
   palette: document.getElementById("entityPalette"),
+  legend: document.getElementById("legendList"),
   modeSwitcher: document.getElementById("modeSwitcher"),
   modeLabel: document.getElementById("modeLabel"),
   canvas: document.getElementById("canvas"),
@@ -70,11 +80,11 @@ const el = {
 };
 
 function shapeMetrics(shape) {
-  if (shape === "triangle") return { w: 150, h: 84 };
-  if (shape === "circle") return { w: 90, h: 90 };
-  if (shape === "ellipse") return { w: 128, h: 80 };
-  if (shape === "octagon") return { w: 90, h: 90 };
-  return { w: 172, h: 76 };
+  if (shape === "triangle") return { w: 136, h: 82 };
+  if (shape === "circle" || shape === "step") return { w: 88, h: 88 };
+  if (shape === "ellipse") return { w: 126, h: 76 };
+  if (shape === "octagon") return { w: 88, h: 88 };
+  return { w: 172, h: 74 };
 }
 
 function entityById(id) { return state.entities.find((x) => x.id === id); }
@@ -210,6 +220,22 @@ function drawRelationships() {
     label.setAttribute("x", spec.labelX); label.setAttribute("y", spec.labelY); label.setAttribute("class", "rel-label"); label.setAttribute("fill", rel.color);
     label.textContent = rel.percent ? `${rel.label} (${rel.percent})` : rel.label;
     el.viewport.append(path, label);
+
+    if (state.showTxnLegend && rel.kind === "transaction") {
+      const t1 = document.createElementNS(svgNS, "text");
+      t1.setAttribute("x", a.x - 8);
+      t1.setAttribute("y", a.y - 10);
+      t1.setAttribute("text-anchor", "end");
+      t1.setAttribute("font-size", "11");
+      t1.textContent = state.txnLegendTail;
+
+      const t2 = document.createElementNS(svgNS, "text");
+      t2.setAttribute("x", b.x + 8);
+      t2.setAttribute("y", b.y - 10);
+      t2.setAttribute("font-size", "11");
+      t2.textContent = state.txnLegendArrow;
+      el.viewport.append(t1, t2);
+    }
   }
 }
 
@@ -259,6 +285,15 @@ function shade(hex, pct) {
   return `#${(1 << 24 | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
 }
 
+function shade(hex, pct) {
+  const n = parseInt(hex.slice(1), 16);
+  const amt = Math.round(2.55 * (pct * 100));
+  const r = Math.min(255, Math.max(0, (n >> 16) + amt));
+  const g = Math.min(255, Math.max(0, ((n >> 8) & 0x00ff) + amt));
+  const b = Math.min(255, Math.max(0, (n & 0x0000ff) + amt));
+  return `#${(1 << 24 | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
+}
+
 function renderPaletteShape(spec) {
   if (spec.shape === "triangle") return `<polygon points="22,2 42,30 2,30" fill="${spec.fill}" stroke="#111" stroke-width="1.8"/>`;
   if (spec.shape === "circle") return `<circle cx="22" cy="17" r="14" fill="${spec.fill}" stroke="#111" stroke-width="1.8"/>`;
@@ -268,7 +303,7 @@ function renderPaletteShape(spec) {
   return `<rect x="2" y="2" width="40" height="30" fill="${spec.fill}" stroke="#111" stroke-width="1.8"/>`;
 }
 
-function initPalette() {
+function initPaletteAndLegend() {
   el.palette.innerHTML = "";
   for (const spec of ENTITY_TYPES) {
     const b = document.createElement("button");
@@ -416,7 +451,7 @@ function wireUi() {
   });
 }
 
-initPalette();
+initPaletteAndLegend();
 wireUi();
 setupPointerEvents();
 refreshSaves();
