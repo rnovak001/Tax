@@ -9,6 +9,7 @@ https://jyen2k.github.io/tax-diagram-tool/
 - Relationship modes (select, equity line, debt arrow).
 - SVG workspace with drag-to-move entities and drag blank space to pan.
 - Selection panel to edit entity and relationship labels.
+- Shape stacking control (1–6) to represent multiple entities as noted in the legend.
 - Local save/load (up to 5 diagrams) with `localStorage`.
 - Export to SVG and PNG.
 

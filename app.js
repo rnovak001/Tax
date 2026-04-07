@@ -1,13 +1,13 @@
 const ENTITY_TYPES = [
-  { type: "U.S. Corporation", shape: "rect", fill: "#d9d9d9", description: "Domestic C-corp" },
-  { type: "Controlled Foreign Corporation", shape: "rect", fill: "#f6bf00", description: "Foreign corp controlled by U.S. persons" },
-  { type: "U.S. Disregarded Entity", shape: "roundedRect", fill: "#69d1d3", description: "Domestic DRE" },
-  { type: "Foreign Disregarded Entity", shape: "roundedRect", fill: "#91cc4e", description: "Foreign DRE" },
-  { type: "U.S. Partnership", shape: "triangle", fill: "#d777c9", description: "Domestic partnership" },
-  { type: "Controlled Foreign Partnership", shape: "triangle", fill: "#9d67cc", description: "Foreign partnership" },
+  { type: "U.S. Corporation", shape: "rect", fill: "#d9d9d9", description: "U.S. Corporation" },
+  { type: "Controlled Foreign Corporation", shape: "rect", fill: "#f6bf00", description: "Controlled Foreign Corporation" },
+  { type: "U.S. Disregarded Entity", shape: "roundedRect", fill: "#69d1d3", description: "U.S. Disregarded Entity" },
+  { type: "Foreign Disregarded Entity", shape: "roundedRect", fill: "#91cc4e", description: "Foreign Disregarded Entity" },
+  { type: "U.S. Partnership", shape: "triangle", fill: "#d777c9", description: "U.S. Partnership" },
+  { type: "Controlled Foreign Partnership", shape: "triangle", fill: "#9d67cc", description: "Controlled Foreign Partnership" },
   { type: "Branch", shape: "ellipse", fill: "#91cc4e", description: "Branch" },
-  { type: "Individual", shape: "circle", fill: "#cedce7", description: "Natural person" },
-  { type: "Unrelated", shape: "octagon", fill: "#d7d7d7", description: "Unrelated third party" },
+  { type: "Individual", shape: "circle", fill: "#cedce7", description: "Individual" },
+  { type: "Unrelated", shape: "octagon", fill: "#d7d7d7", description: "Unrelated" },
 ];
 
 const ENTITY_LOOKUP = Object.fromEntries(ENTITY_TYPES.map((x) => [x.type, x]));
@@ -37,6 +37,7 @@ const el = {
   relationshipEditor: document.getElementById("relationshipEditor"),
   entityLabel: document.getElementById("entityLabel"),
   entityJurisdiction: document.getElementById("entityJurisdiction"),
+  entityStackCount: document.getElementById("entityStackCount"),
   relLabel: document.getElementById("relLabel"),
   relPercent: document.getElementById("relPercent"),
   deleteEntity: document.getElementById("deleteEntity"),
@@ -69,6 +70,7 @@ function addEntity(type) {
     jurisdiction: "",
     shape: spec.shape,
     fill: spec.fill,
+    stackCount: 1,
     x: 220 + state.entities.length * 28,
     y: 170 + state.entities.length * 24,
     w: dims.w,
@@ -112,6 +114,7 @@ function setSelection(sel) {
     el.entityEditor.classList.remove("hidden");
     el.entityLabel.value = entity.label;
     el.entityJurisdiction.value = entity.jurisdiction;
+    el.entityStackCount.value = entity.stackCount || 1;
   } else {
     const rel = state.relationships.find((x) => x.id === sel.id);
     el.selectionHint.textContent = `Selected relationship: ${rel.label}`;
@@ -123,13 +126,13 @@ function setSelection(sel) {
   render();
 }
 
-function createShape(entity) {
+function createShape(entity, dx = 0, dy = 0) {
   const shape = entity.shape;
 
   if (shape === "rect") {
     const rect = document.createElementNS(svgNS, "rect");
-    rect.setAttribute("x", entity.x);
-    rect.setAttribute("y", entity.y);
+    rect.setAttribute("x", entity.x + dx);
+    rect.setAttribute("y", entity.y + dy);
     rect.setAttribute("width", entity.w);
     rect.setAttribute("height", entity.h);
     rect.setAttribute("fill", entity.fill);
@@ -139,16 +142,16 @@ function createShape(entity) {
 
   if (shape === "roundedRect") {
     const rect = document.createElementNS(svgNS, "rect");
-    rect.setAttribute("x", entity.x);
-    rect.setAttribute("y", entity.y);
+    rect.setAttribute("x", entity.x + dx);
+    rect.setAttribute("y", entity.y + dy);
     rect.setAttribute("width", entity.w);
     rect.setAttribute("height", entity.h);
     rect.setAttribute("fill", entity.fill);
     rect.setAttribute("class", "shape");
 
     const oval = document.createElementNS(svgNS, "ellipse");
-    oval.setAttribute("cx", entity.x + entity.w / 2);
-    oval.setAttribute("cy", entity.y + entity.h / 2);
+    oval.setAttribute("cx", entity.x + entity.w / 2 + dx);
+    oval.setAttribute("cy", entity.y + entity.h / 2 + dy);
     oval.setAttribute("rx", entity.w / 2 - 2);
     oval.setAttribute("ry", entity.h / 2 - 2);
     oval.setAttribute("fill", "none");
@@ -161,7 +164,7 @@ function createShape(entity) {
     const poly = document.createElementNS(svgNS, "polygon");
     poly.setAttribute(
       "points",
-      `${entity.x + entity.w / 2},${entity.y} ${entity.x + entity.w},${entity.y + entity.h} ${entity.x},${entity.y + entity.h}`
+      `${entity.x + entity.w / 2 + dx},${entity.y + dy} ${entity.x + entity.w + dx},${entity.y + entity.h + dy} ${entity.x + dx},${entity.y + entity.h + dy}`
     );
     poly.setAttribute("fill", entity.fill);
     poly.setAttribute("class", "shape");
@@ -170,8 +173,8 @@ function createShape(entity) {
 
   if (shape === "ellipse") {
     const ellipse = document.createElementNS(svgNS, "ellipse");
-    ellipse.setAttribute("cx", entity.x + entity.w / 2);
-    ellipse.setAttribute("cy", entity.y + entity.h / 2);
+    ellipse.setAttribute("cx", entity.x + entity.w / 2 + dx);
+    ellipse.setAttribute("cy", entity.y + entity.h / 2 + dy);
     ellipse.setAttribute("rx", entity.w / 2);
     ellipse.setAttribute("ry", entity.h / 2);
     ellipse.setAttribute("fill", entity.fill);
@@ -182,8 +185,8 @@ function createShape(entity) {
   if (shape === "circle") {
     const circle = document.createElementNS(svgNS, "circle");
     const r = Math.min(entity.w, entity.h) / 2;
-    circle.setAttribute("cx", entity.x + entity.w / 2);
-    circle.setAttribute("cy", entity.y + entity.h / 2);
+    circle.setAttribute("cx", entity.x + entity.w / 2 + dx);
+    circle.setAttribute("cy", entity.y + entity.h / 2 + dy);
     circle.setAttribute("r", r);
     circle.setAttribute("fill", entity.fill);
     circle.setAttribute("class", "shape");
@@ -191,8 +194,8 @@ function createShape(entity) {
   }
 
   const oct = document.createElementNS(svgNS, "polygon");
-  const x = entity.x;
-  const y = entity.y;
+  const x = entity.x + dx;
+  const y = entity.y + dy;
   const w = entity.w;
   const h = entity.h;
   const c = 18;
@@ -243,7 +246,12 @@ function drawEntities() {
     group.setAttribute("class", `entity ${state.selection?.type === "entity" && state.selection.id === entity.id ? "selected" : ""}`);
     group.setAttribute("data-id", entity.id);
 
-    for (const node of createShape(entity)) group.appendChild(node);
+    const stackCount = Math.max(1, Math.min(6, Number(entity.stackCount || 1)));
+    for (let i = stackCount - 1; i >= 0; i--) {
+      const dx = i * 8;
+      const dy = i * -8;
+      for (const node of createShape(entity, dx, dy)) group.appendChild(node);
+    }
 
     const label = document.createElementNS(svgNS, "text");
     label.setAttribute("x", entity.x + entity.w / 2);
@@ -407,6 +415,13 @@ function wireUi() {
     const item = state.entities.find((x) => x.id === state.selection?.id);
     if (!item) return;
     item.jurisdiction = el.entityJurisdiction.value;
+    render();
+  });
+
+  el.entityStackCount.addEventListener("input", () => {
+    const item = state.entities.find((x) => x.id === state.selection?.id);
+    if (!item) return;
+    item.stackCount = Math.max(1, Math.min(6, Number(el.entityStackCount.value || 1)));
     render();
   });
 
