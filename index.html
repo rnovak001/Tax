@@ -7,42 +7,18 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <header class="site-header">
-      <div class="topbar">
-        <div class="brand-mark" aria-hidden="true"></div>
-        <p class="brand">Tax Diagram Studio</p>
-        <nav class="top-links" aria-label="Primary navigation">
-          <a href="#">Capabilities</a>
-          <a href="#">Case Studies</a>
-          <a href="#">About</a>
-        </nav>
-        <button class="cta">Start Modeling</button>
-      </div>
-
-      <div class="hero-grid">
-        <div class="hero-copy-wrap">
-          <p class="eyebrow">Strategic Tax Architecture</p>
-          <h1>Consulting-grade legal structure modeling for high-stakes decisions.</h1>
-          <p class="hero-copy">Design, pressure-test, and present entity maps with the visual polish expected in executive steering committees and investment board packs.</p>
-        </div>
-        <div class="hero-metrics" aria-label="Value highlights">
-          <div><span>01</span><p>Build multi-entity structures in minutes.</p></div>
-          <div><span>02</span><p>Model ownership, debt, and intercompany flows.</p></div>
-          <div><span>03</span><p>Export client-ready diagrams in SVG or PNG.</p></div>
-        </div>
-      </div>
     <header>
       <h1>Tax Diagram Studio</h1>
       <p>Build legal structure charts.</p>
-      <p>Add entities, connect equity/debt lines, and export a clean diagram.</p>
+      <p>Add entities, connect ownership, sketch transactions, then export a clean diagram.</p>
     </header>
 
     <main class="layout">
-      <aside class="panel left">
+      <aside class="panel">
         <section>
-          <h2>Entity Palette</h2>
-          <p>Legend-matched color + shape set.</p>
-          <div class="palette-list" id="entityPalette"></div>
+          <h2>Entities</h2>
+          <p>Click to add</p>
+          <div id="entityPalette" class="palette-list"></div>
         </section>
 
         <section>
@@ -50,15 +26,17 @@
           <p>Select mode, then click two entities</p>
           <div class="button-row" id="modeSwitcher">
             <button data-mode="select" class="active">Select</button>
-            <button data-mode="ownership">Equity Line</button>
-            <button data-mode="transaction">Debt Arrow</button>
+            <button data-mode="ownership">Ownership Line</button>
+            <button data-mode="transaction">Debt Line</button>
           </div>
           <p id="modeLabel">Current mode: Select</p>
+          <label><input type="checkbox" id="showTxnLegend" /> Add a legend for transaction arrow</label>
+          <label>Text for arrow end <input id="txnLegendArrow" value="Tx" /></label>
+          <label>Text for non-arrow end <input id="txnLegendTail" value="From" /></label>
         </section>
 
         <section>
           <h2>Saved Diagrams</h2>
-          <p>Up to 5. Saves stay in this browser on this computer.</p>
           <div id="savedDiagrams"></div>
           <button id="saveBtn">Save Current Diagram In Browser</button>
         </section>
@@ -73,6 +51,7 @@
           <button id="clearBtn">Clear</button>
           <button id="exportSvg">Export SVG</button>
           <button id="exportPng">Export PNG</button>
+          <button id="addDescription">Add Description</button>
         </div>
         <svg id="canvas" viewBox="0 0 1400 900" aria-label="Diagram canvas">
           <defs>
@@ -84,53 +63,44 @@
         </svg>
       </section>
 
-      <aside class="panel right">
+      <aside class="panel">
         <section>
           <h2>Selection</h2>
-          <p id="selectionHint">Nothing selected.</p>
+          <p id="selectionHint">Nothing selected</p>
         </section>
 
         <section id="entityEditor" class="hidden">
           <h3>Edit Entity</h3>
           <label>Label <input id="entityLabel" /></label>
-          <label>Type <select id="entityType"></select></label>
+          <label>Entity Type <select id="entityType"></select></label>
           <label>Jurisdiction <input id="entityJurisdiction" /></label>
-          <label>Stack Count <input id="entityStackCount" type="number" min="1" max="6" /></label>
+          <label>Multiple Individuals / Stacks <input id="entityStackCount" type="number" min="1" max="6" /></label>
+          <label>Line Style <select id="entityLineStyle"><option value="solid">Solid</option><option value="dashed">Dashed</option></select></label>
+          <label>Entity Shading <select id="entityShading"><option value="none">None</option><option value="shaded">Shaded</option></select></label>
+          <label><input type="checkbox" id="entityX" /> Add an X (e.g. for liquidation)</label>
+          <label>Inner Shape Style <select id="innerLineStyle"><option value="solid">Solid</option><option value="dashed">Dashed</option></select></label>
+          <label>Inner Shading <select id="innerShading"><option value="none">None</option><option value="shaded">Shaded</option></select></label>
           <button id="deleteEntity">Delete Entity</button>
         </section>
 
         <section id="relationshipEditor" class="hidden">
           <h3>Edit Relationship</h3>
-          <label>Label <input id="relLabel" /></label>
+          <label>Relationship Label <input id="relLabel" /></label>
           <label>Ownership % <input id="relPercent" /></label>
-          <label>Kind
-            <select id="relKind">
-              <option value="ownership">Equity Line</option>
-              <option value="transaction">Debt Arrow</option>
-            </select>
-          </label>
-          <label>Color
-            <select id="relColor">
-              <option value="#202f4a">Black</option>
-              <option value="#d11f1f">Red</option>
-              <option value="#1f55d1">Blue</option>
-            </select>
-          </label>
-          <label>Line Style
-            <select id="relLineStyle">
-              <option value="solid">Solid</option>
-              <option value="dashed">Dashed</option>
-            </select>
-          </label>
-          <label>Connector Style
-            <select id="relConnector">
-              <option value="straight">Straight</option>
-              <option value="elbow">Elbow</option>
-            </select>
-          </label>
-          <label><input type="checkbox" id="relArrowStart" /> Arrowhead at start</label>
-          <label><input type="checkbox" id="relArrowEnd" /> Arrowhead at end</label>
+          <label>Style <select id="relKind"><option value="ownership">Ownership Line</option><option value="transaction">Debt Line</option></select></label>
+          <label>Color <select id="relColor"><option value="#202f4a">Black</option><option value="#d11f1f">Red</option><option value="#1f55d1">Blue</option></select></label>
+          <label>Line Style <select id="relLineStyle"><option value="solid">Solid</option><option value="dashed">Dashed</option></select></label>
+          <label><input type="checkbox" id="relArrowBoth" /> Arrow On Both Ends</label>
+          <label><input type="checkbox" id="relReverseArrow" /> Reverse Arrow</label>
+          <label>From Side <select id="relFromSide"></select></label>
+          <label>To Side <select id="relToSide"></select></label>
           <button id="deleteRel">Delete Relationship</button>
+        </section>
+
+        <section id="descriptionEditor" class="hidden">
+          <h3>Edit Description</h3>
+          <label>Text <input id="descText" /></label>
+          <button id="deleteDesc">Delete Description</button>
         </section>
       </aside>
     </main>
