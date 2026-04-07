@@ -37,6 +37,7 @@ const state = {
 
 const el = {
   palette: document.getElementById("entityPalette"),
+  legend: document.getElementById("legendList"),
   modeSwitcher: document.getElementById("modeSwitcher"),
   modeLabel: document.getElementById("modeLabel"),
   canvas: document.getElementById("canvas"),
@@ -226,7 +227,6 @@ function drawRelationships() {
     const from = entityById(rel.fromId);
     const to = entityById(rel.toId);
     if (!from || !to) continue;
-
     const a = center(from);
     const b = center(to);
     const spec = RELATIONSHIP_TYPES[rel.kind] || RELATIONSHIP_TYPES.equity;
@@ -316,7 +316,7 @@ function shapePreview(spec) {
   return `<rect x="2" y="2" width="44" height="32" fill="${spec.fill}" stroke="#111"/>`;
 }
 
-function initPalette() {
+function initPaletteAndLegend() {
   el.palette.innerHTML = "";
   for (const spec of ENTITY_TYPES) {
     const b = document.createElement("button");
@@ -532,7 +532,7 @@ function wireUi() {
   });
 }
 
-initPalette();
+initPaletteAndLegend();
 wireUi();
 setupPointerEvents();
 refreshSaves();
