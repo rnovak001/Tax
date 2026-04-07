@@ -11,6 +11,8 @@ const ENTITY_TYPES = [
 ];
 
 const ENTITY_LOOKUP = Object.fromEntries(ENTITY_TYPES.map((x) => [x.type, x]));
+const svgNS = "http://www.w3.org/2000/svg";
+const uid = () => crypto.randomUUID().slice(0, 8);
 
 const state = {
   mode: "select",
@@ -36,20 +38,23 @@ const el = {
   entityEditor: document.getElementById("entityEditor"),
   relationshipEditor: document.getElementById("relationshipEditor"),
   entityLabel: document.getElementById("entityLabel"),
+  entityType: document.getElementById("entityType"),
   entityJurisdiction: document.getElementById("entityJurisdiction"),
   entityStackCount: document.getElementById("entityStackCount"),
   relLabel: document.getElementById("relLabel"),
   relPercent: document.getElementById("relPercent"),
+  relKind: document.getElementById("relKind"),
+  relColor: document.getElementById("relColor"),
+  relLineStyle: document.getElementById("relLineStyle"),
+  relConnector: document.getElementById("relConnector"),
+  relArrowStart: document.getElementById("relArrowStart"),
+  relArrowEnd: document.getElementById("relArrowEnd"),
   deleteEntity: document.getElementById("deleteEntity"),
   deleteRel: document.getElementById("deleteRel"),
-  toggleDashed: document.getElementById("toggleDashed"),
   saveBtn: document.getElementById("saveBtn"),
   savedDiagrams: document.getElementById("savedDiagrams"),
   template: document.getElementById("saveItemTemplate"),
 };
-
-const uid = () => crypto.randomUUID().slice(0, 8);
-const svgNS = "http://www.w3.org/2000/svg";
 
 function shapeMetrics(shape) {
   if (shape === "triangle") return { w: 150, h: 84 };
@@ -59,10 +64,12 @@ function shapeMetrics(shape) {
   return { w: 172, h: 76 };
 }
 
+function entityById(id) { return state.entities.find((x) => x.id === id); }
+function relById(id) { return state.relationships.find((x) => x.id === id); }
+
 function addEntity(type) {
   const spec = ENTITY_LOOKUP[type] || ENTITY_TYPES[0];
   const dims = shapeMetrics(spec.shape);
-
   state.entities.push({
     id: uid(),
     type: spec.type,
@@ -71,31 +78,33 @@ function addEntity(type) {
     shape: spec.shape,
     fill: spec.fill,
     stackCount: 1,
-    x: 220 + state.entities.length * 28,
-    y: 170 + state.entities.length * 24,
+    x: 170 + (state.entities.length % 6) * 190,
+    y: 130 + Math.floor(state.entities.length / 6) * 135,
     w: dims.w,
     h: dims.h,
   });
-
   render();
 }
 
 function addRelationship(fromId, toId, kind) {
+  const isEquity = kind === "ownership";
   state.relationships.push({
     id: uid(),
     fromId,
     toId,
     kind,
-    label: kind === "ownership" ? "Equity" : "Debt",
+    label: isEquity ? "Equity" : "Transaction",
     percent: "",
-    dashed: kind === "transaction",
+    color: "#202f4a",
+    dashed: !isEquity,
+    connector: "straight",
+    arrowStart: false,
+    arrowEnd: !isEquity,
   });
   render();
 }
 
-function entityCenter(e) {
-  return { x: e.x + e.w / 2, y: e.y + e.h / 2 };
-}
+function center(e) { return { x: e.x + e.w / 2, y: e.y + e.h / 2 }; }
 
 function setSelection(sel) {
   state.selection = sel;
@@ -109,18 +118,27 @@ function setSelection(sel) {
   }
 
   if (sel.type === "entity") {
-    const entity = state.entities.find((x) => x.id === sel.id);
+    const entity = entityById(sel.id);
+    if (!entity) return;
     el.selectionHint.textContent = `Selected entity: ${entity.label}`;
     el.entityEditor.classList.remove("hidden");
     el.entityLabel.value = entity.label;
+    el.entityType.value = entity.type;
     el.entityJurisdiction.value = entity.jurisdiction;
-    el.entityStackCount.value = entity.stackCount || 1;
+    el.entityStackCount.value = entity.stackCount;
   } else {
-    const rel = state.relationships.find((x) => x.id === sel.id);
+    const rel = relById(sel.id);
+    if (!rel) return;
     el.selectionHint.textContent = `Selected relationship: ${rel.label}`;
     el.relationshipEditor.classList.remove("hidden");
     el.relLabel.value = rel.label;
     el.relPercent.value = rel.percent;
+    el.relKind.value = rel.kind;
+    el.relColor.value = rel.color;
+    el.relLineStyle.value = rel.dashed ? "dashed" : "solid";
+    el.relConnector.value = rel.connector || "straight";
+    el.relArrowStart.checked = Boolean(rel.arrowStart);
+    el.relArrowEnd.checked = Boolean(rel.arrowEnd);
   }
 
   render();
@@ -128,6 +146,13 @@ function setSelection(sel) {
 
 function createShape(entity, dx = 0, dy = 0) {
   const shape = entity.shape;
+  const nodes = [];
+
+  function styleShape(node, fill) {
+    node.setAttribute("fill", fill);
+    node.setAttribute("class", "shape");
+    nodes.push(node);
+  }
 
   if (shape === "rect") {
     const rect = document.createElementNS(svgNS, "rect");
@@ -135,9 +160,8 @@ function createShape(entity, dx = 0, dy = 0) {
     rect.setAttribute("y", entity.y + dy);
     rect.setAttribute("width", entity.w);
     rect.setAttribute("height", entity.h);
-    rect.setAttribute("fill", entity.fill);
-    rect.setAttribute("class", "shape");
-    return [rect];
+    styleShape(rect, entity.fill);
+    return nodes;
   }
 
   if (shape === "roundedRect") {
@@ -146,8 +170,7 @@ function createShape(entity, dx = 0, dy = 0) {
     rect.setAttribute("y", entity.y + dy);
     rect.setAttribute("width", entity.w);
     rect.setAttribute("height", entity.h);
-    rect.setAttribute("fill", entity.fill);
-    rect.setAttribute("class", "shape");
+    styleShape(rect, entity.fill);
 
     const oval = document.createElementNS(svgNS, "ellipse");
     oval.setAttribute("cx", entity.x + entity.w / 2 + dx);
@@ -156,19 +179,15 @@ function createShape(entity, dx = 0, dy = 0) {
     oval.setAttribute("ry", entity.h / 2 - 2);
     oval.setAttribute("fill", "none");
     oval.setAttribute("class", "shape");
-
-    return [rect, oval];
+    nodes.push(oval);
+    return nodes;
   }
 
   if (shape === "triangle") {
     const poly = document.createElementNS(svgNS, "polygon");
-    poly.setAttribute(
-      "points",
-      `${entity.x + entity.w / 2 + dx},${entity.y + dy} ${entity.x + entity.w + dx},${entity.y + entity.h + dy} ${entity.x + dx},${entity.y + entity.h + dy}`
-    );
-    poly.setAttribute("fill", entity.fill);
-    poly.setAttribute("class", "shape");
-    return [poly];
+    poly.setAttribute("points", `${entity.x + entity.w / 2 + dx},${entity.y + dy} ${entity.x + entity.w + dx},${entity.y + entity.h + dy} ${entity.x + dx},${entity.y + entity.h + dy}`);
+    styleShape(poly, entity.fill);
+    return nodes;
   }
 
   if (shape === "ellipse") {
@@ -177,66 +196,81 @@ function createShape(entity, dx = 0, dy = 0) {
     ellipse.setAttribute("cy", entity.y + entity.h / 2 + dy);
     ellipse.setAttribute("rx", entity.w / 2);
     ellipse.setAttribute("ry", entity.h / 2);
-    ellipse.setAttribute("fill", entity.fill);
-    ellipse.setAttribute("class", "shape");
-    return [ellipse];
+    styleShape(ellipse, entity.fill);
+    return nodes;
   }
 
   if (shape === "circle") {
     const circle = document.createElementNS(svgNS, "circle");
-    const r = Math.min(entity.w, entity.h) / 2;
     circle.setAttribute("cx", entity.x + entity.w / 2 + dx);
     circle.setAttribute("cy", entity.y + entity.h / 2 + dy);
-    circle.setAttribute("r", r);
-    circle.setAttribute("fill", entity.fill);
-    circle.setAttribute("class", "shape");
-    return [circle];
+    circle.setAttribute("r", Math.min(entity.w, entity.h) / 2);
+    styleShape(circle, entity.fill);
+    return nodes;
   }
 
   const oct = document.createElementNS(svgNS, "polygon");
   const x = entity.x + dx;
   const y = entity.y + dy;
-  const w = entity.w;
-  const h = entity.h;
   const c = 18;
-  oct.setAttribute(
-    "points",
-    `${x + c},${y} ${x + w - c},${y} ${x + w},${y + c} ${x + w},${y + h - c} ${x + w - c},${y + h} ${x + c},${y + h} ${x},${y + h - c} ${x},${y + c}`
-  );
-  oct.setAttribute("fill", entity.fill);
-  oct.setAttribute("class", "shape");
-  return [oct];
+  oct.setAttribute("points", `${x + c},${y} ${x + entity.w - c},${y} ${x + entity.w},${y + c} ${x + entity.w},${y + entity.h - c} ${x + entity.w - c},${y + entity.h} ${x + c},${y + entity.h} ${x},${y + entity.h - c} ${x},${y + c}`);
+  styleShape(oct, entity.fill);
+  return nodes;
+}
+
+function relationshipPath(rel, a, b) {
+  if (rel.connector !== "elbow") {
+    return { d: `M ${a.x} ${a.y} L ${b.x} ${b.y}`, labelX: (a.x + b.x) / 2, labelY: (a.y + b.y) / 2 };
+  }
+
+  const horizontalFirst = Math.abs(a.x - b.x) >= Math.abs(a.y - b.y);
+  if (horizontalFirst) {
+    const midX = (a.x + b.x) / 2;
+    return {
+      d: `M ${a.x} ${a.y} L ${midX} ${a.y} L ${midX} ${b.y} L ${b.x} ${b.y}`,
+      labelX: midX + 6,
+      labelY: (a.y + b.y) / 2 - 8,
+    };
+  }
+
+  const midY = (a.y + b.y) / 2;
+  return {
+    d: `M ${a.x} ${a.y} L ${a.x} ${midY} L ${b.x} ${midY} L ${b.x} ${b.y}`,
+    labelX: (a.x + b.x) / 2 + 6,
+    labelY: midY - 8,
+  };
 }
 
 function drawRelationships() {
   for (const rel of state.relationships) {
-    const from = state.entities.find((e) => e.id === rel.fromId);
-    const to = state.entities.find((e) => e.id === rel.toId);
+    const from = entityById(rel.fromId);
+    const to = entityById(rel.toId);
     if (!from || !to) continue;
 
-    const a = entityCenter(from);
-    const b = entityCenter(to);
+    const a = center(from);
+    const b = center(to);
+    const pathSpec = relationshipPath(rel, a, b);
+    const path = document.createElementNS(svgNS, "path");
+    path.setAttribute("d", pathSpec.d);
+    path.setAttribute("class", "rel-line");
+    path.setAttribute("stroke", rel.color || "#202f4a");
+    if (rel.dashed) path.setAttribute("stroke-dasharray", "8 5");
+    if (rel.arrowStart) path.setAttribute("marker-start", "url(#arrowhead)");
+    if (rel.arrowEnd) path.setAttribute("marker-end", "url(#arrowhead)");
 
-    const line = document.createElementNS(svgNS, "line");
-    line.setAttribute("x1", a.x);
-    line.setAttribute("y1", a.y);
-    line.setAttribute("x2", b.x);
-    line.setAttribute("y2", b.y);
-    line.setAttribute("class", `rel-line ${rel.dashed ? "dashed" : ""}`);
-    if (rel.kind === "transaction") line.setAttribute("marker-end", "url(#arrowhead)");
-
-    line.addEventListener("click", (evt) => {
+    path.addEventListener("click", (evt) => {
       evt.stopPropagation();
       setSelection({ type: "relationship", id: rel.id });
     });
 
     const label = document.createElementNS(svgNS, "text");
-    label.setAttribute("x", (a.x + b.x) / 2 + 5);
-    label.setAttribute("y", (a.y + b.y) / 2 - 6);
+    label.setAttribute("x", pathSpec.labelX);
+    label.setAttribute("y", pathSpec.labelY);
     label.setAttribute("class", "rel-label");
+    label.setAttribute("fill", rel.color || "#202f4a");
     label.textContent = rel.percent ? `${rel.label} (${rel.percent})` : rel.label;
 
-    el.viewport.append(line, label);
+    el.viewport.append(path, label);
   }
 }
 
@@ -285,9 +319,7 @@ function renderPaletteShape(spec) {
   if (spec.shape === "circle") return `<circle cx="22" cy="17" r="14" fill="${spec.fill}" stroke="#111" stroke-width="1.8"/>`;
   if (spec.shape === "ellipse") return `<ellipse cx="22" cy="17" rx="20" ry="13" fill="${spec.fill}" stroke="#111" stroke-width="1.8"/>`;
   if (spec.shape === "octagon") return `<polygon points="12,2 32,2 42,12 42,22 32,32 12,32 2,22 2,12" fill="${spec.fill}" stroke="#111" stroke-width="1.8"/>`;
-  if (spec.shape === "roundedRect") {
-    return `<rect x="2" y="2" width="40" height="30" fill="${spec.fill}" stroke="#111" stroke-width="1.8"/><ellipse cx="22" cy="17" rx="19" ry="13" fill="none" stroke="#111" stroke-width="1.8"/>`;
-  }
+  if (spec.shape === "roundedRect") return `<rect x="2" y="2" width="40" height="30" fill="${spec.fill}" stroke="#111" stroke-width="1.8"/><ellipse cx="22" cy="17" rx="19" ry="13" fill="none" stroke="#111" stroke-width="1.8"/>`;
   return `<rect x="2" y="2" width="40" height="30" fill="${spec.fill}" stroke="#111" stroke-width="1.8"/>`;
 }
 
@@ -297,15 +329,11 @@ function initPalette() {
     const button = document.createElement("button");
     button.className = "palette-item";
     button.dataset.type = spec.type;
-    button.innerHTML = `
-      <svg viewBox="0 0 44 34" aria-hidden="true">${renderPaletteShape(spec)}</svg>
-      <span>
-        <span class="title">${spec.type}</span>
-        <span class="desc">${spec.description}</span>
-      </span>
-    `;
+    button.innerHTML = `<svg viewBox="0 0 44 34" aria-hidden="true">${renderPaletteShape(spec)}</svg><span><span class="title">${spec.type}</span><span class="desc">${spec.description}</span></span>`;
     el.palette.appendChild(button);
   }
+
+  el.entityType.innerHTML = ENTITY_TYPES.map((item) => `<option value="${item.type}">${item.type}</option>`).join("");
 }
 
 function setupPointerEvents() {
@@ -319,7 +347,7 @@ function setupPointerEvents() {
     }
 
     const id = node.dataset.id;
-    const entity = state.entities.find((x) => x.id === id);
+    const entity = entityById(id);
 
     if (state.mode === "select") {
       setSelection({ type: "entity", id });
@@ -339,7 +367,7 @@ function setupPointerEvents() {
 
   window.addEventListener("mousemove", (evt) => {
     if (state.dragEntityId && state.dragOrigin && state.mode === "select") {
-      const entity = state.entities.find((x) => x.id === state.dragEntityId);
+      const entity = entityById(state.dragEntityId);
       const dx = (evt.clientX - state.dragOrigin.x) / state.zoom;
       const dy = (evt.clientY - state.dragOrigin.y) / state.zoom;
       entity.x = state.dragOrigin.ex + dx;
@@ -370,7 +398,7 @@ function refreshSaves() {
     const node = el.template.content.firstElementChild.cloneNode(true);
     node.querySelector(".name").textContent = save.name;
     node.querySelector(".load").addEventListener("click", () => {
-      Object.assign(state, save.data, { selection: null, connectBuffer: null, dragEntityId: null });
+      Object.assign(state, save.data, { selection: null, connectBuffer: null, dragEntityId: null, dragOrigin: null, panOrigin: null });
       render();
     });
     node.querySelector(".delete").addEventListener("click", () => {
@@ -405,46 +433,107 @@ function wireUi() {
   });
 
   el.entityLabel.addEventListener("input", () => {
-    const item = state.entities.find((x) => x.id === state.selection?.id);
+    const item = entityById(state.selection?.id);
     if (!item) return;
     item.label = el.entityLabel.value;
     render();
   });
 
+  el.entityType.addEventListener("input", () => {
+    const item = entityById(state.selection?.id);
+    if (!item) return;
+    const spec = ENTITY_LOOKUP[el.entityType.value];
+    if (!spec) return;
+    const dims = shapeMetrics(spec.shape);
+    item.type = spec.type;
+    item.shape = spec.shape;
+    item.fill = spec.fill;
+    item.w = dims.w;
+    item.h = dims.h;
+    render();
+  });
+
   el.entityJurisdiction.addEventListener("input", () => {
-    const item = state.entities.find((x) => x.id === state.selection?.id);
+    const item = entityById(state.selection?.id);
     if (!item) return;
     item.jurisdiction = el.entityJurisdiction.value;
     render();
   });
 
   el.entityStackCount.addEventListener("input", () => {
-    const item = state.entities.find((x) => x.id === state.selection?.id);
+    const item = entityById(state.selection?.id);
     if (!item) return;
     item.stackCount = Math.max(1, Math.min(6, Number(el.entityStackCount.value || 1)));
     render();
   });
 
   el.relLabel.addEventListener("input", () => {
-    const rel = state.relationships.find((x) => x.id === state.selection?.id);
+    const rel = relById(state.selection?.id);
     if (!rel) return;
     rel.label = el.relLabel.value;
     render();
   });
 
   el.relPercent.addEventListener("input", () => {
-    const rel = state.relationships.find((x) => x.id === state.selection?.id);
+    const rel = relById(state.selection?.id);
     if (!rel) return;
     rel.percent = el.relPercent.value;
+    render();
+  });
+
+  el.relKind.addEventListener("input", () => {
+    const rel = relById(state.selection?.id);
+    if (!rel) return;
+    rel.kind = el.relKind.value;
+    if (rel.kind === "ownership") {
+      rel.dashed = false;
+      if (!rel.arrowStart && !rel.arrowEnd) rel.arrowEnd = false;
+    } else {
+      rel.dashed = true;
+      if (!rel.arrowStart && !rel.arrowEnd) rel.arrowEnd = true;
+    }
+    render();
+  });
+
+  el.relColor.addEventListener("input", () => {
+    const rel = relById(state.selection?.id);
+    if (!rel) return;
+    rel.color = el.relColor.value;
+    render();
+  });
+
+  el.relLineStyle.addEventListener("input", () => {
+    const rel = relById(state.selection?.id);
+    if (!rel) return;
+    rel.dashed = el.relLineStyle.value === "dashed";
+    render();
+  });
+
+  el.relConnector.addEventListener("input", () => {
+    const rel = relById(state.selection?.id);
+    if (!rel) return;
+    rel.connector = el.relConnector.value;
+    render();
+  });
+
+  el.relArrowStart.addEventListener("change", () => {
+    const rel = relById(state.selection?.id);
+    if (!rel) return;
+    rel.arrowStart = el.relArrowStart.checked;
+    render();
+  });
+
+  el.relArrowEnd.addEventListener("change", () => {
+    const rel = relById(state.selection?.id);
+    if (!rel) return;
+    rel.arrowEnd = el.relArrowEnd.checked;
     render();
   });
 
   el.deleteEntity.addEventListener("click", () => {
     if (state.selection?.type !== "entity") return;
     state.entities = state.entities.filter((x) => x.id !== state.selection.id);
-    state.relationships = state.relationships.filter(
-      (x) => x.fromId !== state.selection.id && x.toId !== state.selection.id
-    );
+    state.relationships = state.relationships.filter((x) => x.fromId !== state.selection.id && x.toId !== state.selection.id);
     setSelection(null);
   });
 
@@ -452,13 +541,6 @@ function wireUi() {
     if (state.selection?.type !== "relationship") return;
     state.relationships = state.relationships.filter((x) => x.id !== state.selection.id);
     setSelection(null);
-  });
-
-  el.toggleDashed.addEventListener("click", () => {
-    const rel = state.relationships.find((x) => x.id === state.selection?.id);
-    if (!rel) return;
-    rel.dashed = !rel.dashed;
-    render();
   });
 
   document.getElementById("zoomIn").addEventListener("click", () => {

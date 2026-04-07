@@ -69,6 +69,7 @@
         <section id="entityEditor" class="hidden">
           <h3>Edit Entity</h3>
           <label>Label <input id="entityLabel" /></label>
+          <label>Type <select id="entityType"></select></label>
           <label>Jurisdiction <input id="entityJurisdiction" /></label>
           <label>Stack Count <input id="entityStackCount" type="number" min="1" max="6" /></label>
           <button id="deleteEntity">Delete Entity</button>
@@ -78,7 +79,33 @@
           <h3>Edit Relationship</h3>
           <label>Label <input id="relLabel" /></label>
           <label>Ownership % <input id="relPercent" /></label>
-          <button id="toggleDashed">Toggle Dashed</button>
+          <label>Kind
+            <select id="relKind">
+              <option value="ownership">Equity Line</option>
+              <option value="transaction">Debt Arrow</option>
+            </select>
+          </label>
+          <label>Color
+            <select id="relColor">
+              <option value="#202f4a">Black</option>
+              <option value="#d11f1f">Red</option>
+              <option value="#1f55d1">Blue</option>
+            </select>
+          </label>
+          <label>Line Style
+            <select id="relLineStyle">
+              <option value="solid">Solid</option>
+              <option value="dashed">Dashed</option>
+            </select>
+          </label>
+          <label>Connector Style
+            <select id="relConnector">
+              <option value="straight">Straight</option>
+              <option value="elbow">Elbow</option>
+            </select>
+          </label>
+          <label><input type="checkbox" id="relArrowStart" /> Arrowhead at start</label>
+          <label><input type="checkbox" id="relArrowEnd" /> Arrowhead at end</label>
           <button id="deleteRel">Delete Relationship</button>
         </section>
       </aside>
