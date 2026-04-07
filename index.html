@@ -16,7 +16,7 @@
     <main class="layout">
       <aside class="panel">
         <section>
-          <h2>Entity Palette</h2>
+          <h2>Entities</h2>
           <p>Click to add</p>
           <div id="entityPalette" class="palette-list"></div>
         </section>
@@ -27,7 +27,7 @@
           <div class="button-grid" id="modeSwitcher">
             <button data-mode="select" class="active">Select</button>
             <button data-mode="ownership">Ownership Line</button>
-            <button data-mode="transaction">Transaction Arrow</button>
+            <button data-mode="transaction">Debt Line</button>
           </div>
           <p id="modeLabel">Current mode: Select</p>
           <label><input type="checkbox" id="showTxnLegend" /> Add a legend for transaction arrow</label>
@@ -51,6 +51,7 @@
           <button id="clearBtn">Clear</button>
           <button id="exportSvg">Export SVG</button>
           <button id="exportPng">Export PNG</button>
+          <button id="addDescription">Add Description</button>
         </div>
         <svg id="canvas" viewBox="0 0 1500 920" aria-label="Diagram canvas">
           <defs>
@@ -63,11 +64,6 @@
       </section>
 
       <aside class="panel">
-        <section>
-          <h2>Legend</h2>
-          <div id="legendList" class="legend-list"></div>
-        </section>
-
         <section>
           <h2>Selection</h2>
           <p id="selectionHint">Nothing selected</p>
@@ -91,12 +87,20 @@
           <h3>Edit Relationship</h3>
           <label>Relationship Label <input id="relLabel" /></label>
           <label>Ownership % <input id="relPercent" /></label>
-          <label>Style <select id="relKind"><option value="ownership">Ownership Line</option><option value="transaction">Transaction Arrow</option></select></label>
+          <label>Style <select id="relKind"><option value="ownership">Ownership Line</option><option value="transaction">Debt Line</option></select></label>
           <label>Color <select id="relColor"><option value="#202f4a">Black</option><option value="#d11f1f">Red</option><option value="#1f55d1">Blue</option></select></label>
           <label>Line Style <select id="relLineStyle"><option value="solid">Solid</option><option value="dashed">Dashed</option></select></label>
           <label><input type="checkbox" id="relArrowBoth" /> Arrow On Both Ends</label>
           <label><input type="checkbox" id="relReverseArrow" /> Reverse Arrow</label>
+          <label>From Side <select id="relFromSide"></select></label>
+          <label>To Side <select id="relToSide"></select></label>
           <button id="deleteRel">Delete Relationship</button>
+        </section>
+
+        <section id="descriptionEditor" class="hidden">
+          <h3>Edit Description</h3>
+          <label>Text <input id="descText" /></label>
+          <button id="deleteDesc">Delete Description</button>
         </section>
       </aside>
     </main>

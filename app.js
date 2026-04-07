@@ -1,14 +1,13 @@
 const ENTITY_TYPES = [
   { type: "U.S. Corporation", shape: "rect", fill: "#ffffff" },
   { type: "Controlled Foreign Corporation", shape: "rect", fill: "#f6bf00" },
-  { type: "U.S. Disregarded Entity", shape: "roundedRect", fill: "#64d7d9" },
-  { type: "Foreign Disregarded Entity", shape: "roundedRect", fill: "#94d252" },
+  { type: "U.S. Disregarded Entity", shape: "roundedRect", fill: "#69d1d3" },
+  { type: "Foreign Disregarded Entity", shape: "roundedRect", fill: "#91cc4e" },
   { type: "U.S. Partnership", shape: "triangle", fill: "#d777c9" },
   { type: "Controlled Foreign Partnership", shape: "triangle", fill: "#9d67cc" },
-  { type: "Branch", shape: "ellipse", fill: "#94d252" },
-  { type: "Individual", shape: "circle", fill: "#cfdde8" },
+  { type: "Branch", shape: "ellipse", fill: "#91cc4e" },
+  { type: "Individual", shape: "circle", fill: "#cedce7" },
   { type: "Unrelated", shape: "octagon", fill: "#d7d7d7" },
-  { type: "Transactional Step", shape: "step", fill: "#f4f4f4" },
 ];
 
 const RELATIONSHIP_TYPES = {
@@ -18,6 +17,7 @@ const RELATIONSHIP_TYPES = {
 };
 
 const ENTITY_LOOKUP = Object.fromEntries(ENTITY_TYPES.map((x) => [x.type, x]));
+const SIDES = ["top", "right", "bottom", "left"];
 const svgNS = "http://www.w3.org/2000/svg";
 const uid = () => crypto.randomUUID().slice(0, 8);
 
@@ -27,10 +27,12 @@ const state = {
   panX: 0,
   panY: 0,
   entities: [],
+  descriptions: [],
   relationships: [],
   selection: null,
   connectBuffer: null,
   dragEntityId: null,
+  dragDescId: null,
   dragOrigin: null,
   panOrigin: null,
   showTxnLegend: false,
@@ -47,7 +49,8 @@ const el = {
   viewport: document.getElementById("viewport"),
   selectionHint: document.getElementById("selectionHint"),
   entityEditor: document.getElementById("entityEditor"),
-  equityEditor: document.getElementById("equityEditor"),
+  relationshipEditor: document.getElementById("relationshipEditor"),
+  descriptionEditor: document.getElementById("descriptionEditor"),
   entityLabel: document.getElementById("entityLabel"),
   entityType: document.getElementById("entityType"),
   entityJurisdiction: document.getElementById("entityJurisdiction"),
@@ -64,11 +67,13 @@ const el = {
   relLineStyle: document.getElementById("relLineStyle"),
   relArrowBoth: document.getElementById("relArrowBoth"),
   relReverseArrow: document.getElementById("relReverseArrow"),
-  showTxnLegend: document.getElementById("showTxnLegend"),
-  txnLegendArrow: document.getElementById("txnLegendArrow"),
-  txnLegendTail: document.getElementById("txnLegendTail"),
+  relFromSide: document.getElementById("relFromSide"),
+  relToSide: document.getElementById("relToSide"),
+  descText: document.getElementById("descText"),
+  deleteDesc: document.getElementById("deleteDesc"),
   deleteEntity: document.getElementById("deleteEntity"),
   deleteRel: document.getElementById("deleteRel"),
+  addDescription: document.getElementById("addDescription"),
   saveBtn: document.getElementById("saveBtn"),
   savedDiagrams: document.getElementById("savedDiagrams"),
   template: document.getElementById("saveItemTemplate"),
@@ -84,45 +89,48 @@ function shapeMetrics(shape) {
 
 function entityById(id) { return state.entities.find((x) => x.id === id); }
 function relById(id) { return state.relationships.find((x) => x.id === id); }
+function descById(id) { return state.descriptions.find((x) => x.id === id); }
+
 function center(e) { return { x: e.x + e.w / 2, y: e.y + e.h / 2 }; }
+function anchor(entity, side) {
+  if (side === "top") return { x: entity.x + entity.w / 2, y: entity.y };
+  if (side === "right") return { x: entity.x + entity.w, y: entity.y + entity.h / 2 };
+  if (side === "bottom") return { x: entity.x + entity.w / 2, y: entity.y + entity.h };
+  return { x: entity.x, y: entity.y + entity.h / 2 };
+}
+
+function autoSide(from, to) {
+  const a = center(from); const b = center(to);
+  const dx = b.x - a.x; const dy = b.y - a.y;
+  if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? ["right", "left"] : ["left", "right"];
+  return dy >= 0 ? ["bottom", "top"] : ["top", "bottom"];
+}
 
 function addEntity(type) {
   const spec = ENTITY_LOOKUP[type] || ENTITY_TYPES[0];
   const dims = shapeMetrics(spec.shape);
   state.entities.push({
-    id: uid(),
-    type: spec.type,
-    label: spec.type,
-    jurisdiction: "",
-    shape: spec.shape,
-    fill: spec.fill,
-    stackCount: 1,
-    lineStyle: "solid",
-    shaded: false,
-    showX: false,
-    innerLineStyle: "solid",
-    innerShaded: false,
-    x: 170 + (state.entities.length % 6) * 190,
-    y: 130 + Math.floor(state.entities.length / 6) * 135,
-    w: dims.w,
-    h: dims.h,
+    id: uid(), type: spec.type, label: spec.type, jurisdiction: "", shape: spec.shape, fill: spec.fill,
+    stackCount: 1, lineStyle: "solid", shaded: false, showX: false, innerLineStyle: "solid", innerShaded: false,
+    x: 170 + (state.entities.length % 6) * 190, y: 130 + Math.floor(state.entities.length / 6) * 135, w: dims.w, h: dims.h,
   });
   render();
 }
 
+function addDescription() {
+  state.descriptions.push({ id: uid(), text: "Description", x: 640, y: 120 });
+  render();
+}
+
 function addRelationship(fromId, toId, kind) {
+  const from = entityById(fromId); const to = entityById(toId);
+  const [fromSide, toSide] = autoSide(from, to);
   const isOwnership = kind === "ownership";
   state.relationships.push({
-    id: uid(),
-    fromId,
-    toId,
-    kind,
-    label: isOwnership ? "Ownership" : "Transaction",
-    percent: "",
-    color: "#202f4a",
-    dashed: !isOwnership,
-    arrowBoth: false,
-    reverseArrow: !isOwnership,
+    id: uid(), fromId, toId, fromSide, toSide,
+    kind, label: isOwnership ? "Ownership" : "Debt", percent: "",
+    color: isOwnership ? "#202f4a" : "#d11f1f", dashed: !isOwnership,
+    arrowBoth: false, reverseArrow: false,
   });
   render();
 }
@@ -130,175 +138,87 @@ function addRelationship(fromId, toId, kind) {
 function setSelection(sel) {
   state.selection = sel;
   el.entityEditor.classList.add("hidden");
-  el.equityEditor.classList.add("hidden");
+  el.relationshipEditor.classList.add("hidden");
+  el.descriptionEditor.classList.add("hidden");
 
-  if (!sel) {
-    el.selectionHint.textContent = "Nothing selected";
-    render();
-    return;
-  }
+  if (!sel) { el.selectionHint.textContent = "Nothing selected"; render(); return; }
 
   if (sel.type === "entity") {
-    const entity = entityById(sel.id);
-    if (!entity) return;
+    const entity = entityById(sel.id); if (!entity) return;
     el.selectionHint.textContent = `Selected entity: ${entity.label}`;
     el.entityEditor.classList.remove("hidden");
-    el.entityLabel.value = entity.label;
-    el.entityType.value = entity.type;
-    el.entityJurisdiction.value = entity.jurisdiction;
-    el.entityStackCount.value = entity.stackCount;
-    el.entityLineStyle.value = entity.lineStyle || "solid";
-    el.entityShading.value = entity.shaded ? "shaded" : "none";
-    el.entityX.checked = Boolean(entity.showX);
-    el.innerLineStyle.value = entity.innerLineStyle || "solid";
-    el.innerShading.value = entity.innerShaded ? "shaded" : "none";
-  } else {
-    const rel = relById(sel.id);
-    if (!rel) return;
+    el.entityLabel.value = entity.label; el.entityType.value = entity.type; el.entityJurisdiction.value = entity.jurisdiction;
+    el.entityStackCount.value = entity.stackCount; el.entityLineStyle.value = entity.lineStyle; el.entityShading.value = entity.shaded ? "shaded" : "none";
+    el.entityX.checked = Boolean(entity.showX); el.innerLineStyle.value = entity.innerLineStyle; el.innerShading.value = entity.innerShaded ? "shaded" : "none";
+  } else if (sel.type === "relationship") {
+    const rel = relById(sel.id); if (!rel) return;
     el.selectionHint.textContent = `Selected relationship: ${rel.label}`;
     el.relationshipEditor.classList.remove("hidden");
-    el.relLabel.value = rel.label;
-    el.relPercent.value = rel.percent;
-    el.relKind.value = rel.kind;
-    el.relColor.value = rel.color;
-    el.relLineStyle.value = rel.dashed ? "dashed" : "solid";
-    el.relArrowBoth.checked = Boolean(rel.arrowBoth);
-    el.relReverseArrow.checked = Boolean(rel.reverseArrow);
+    el.relLabel.value = rel.label; el.relPercent.value = rel.percent; el.relKind.value = rel.kind; el.relColor.value = rel.color;
+    el.relLineStyle.value = rel.dashed ? "dashed" : "solid"; el.relArrowBoth.checked = rel.arrowBoth; el.relReverseArrow.checked = rel.reverseArrow;
+    el.relFromSide.value = rel.fromSide; el.relToSide.value = rel.toSide;
+  } else {
+    const desc = descById(sel.id); if (!desc) return;
+    el.selectionHint.textContent = "Selected description";
+    el.descriptionEditor.classList.remove("hidden");
+    el.descText.value = desc.text;
   }
-
   render();
 }
 
 function applyShapeStyle(node, entity, isInner = false) {
-  const strokeDasharray = (isInner ? entity.innerLineStyle : entity.lineStyle) === "dashed" ? "6 4" : null;
+  const ls = (isInner ? entity.innerLineStyle : entity.lineStyle) === "dashed" ? "6 4" : null;
   node.setAttribute("class", isInner ? "inner-shape" : "shape");
-  if (strokeDasharray) node.setAttribute("stroke-dasharray", strokeDasharray);
+  if (ls) node.setAttribute("stroke-dasharray", ls);
 }
 
 function createShape(entity, dx = 0, dy = 0) {
-  const shape = entity.shape;
-  const nodes = [];
-  const fill = entity.shaded ? shade(entity.fill, -0.1) : entity.fill;
-
-  if (shape === "rect") {
-    const rect = document.createElementNS(svgNS, "rect");
-    rect.setAttribute("x", entity.x + dx);
-    rect.setAttribute("y", entity.y + dy);
-    rect.setAttribute("width", entity.w);
-    rect.setAttribute("height", entity.h);
-    rect.setAttribute("fill", fill);
-    applyShapeStyle(rect, entity);
-    nodes.push(rect);
-    return nodes;
+  const nodes = []; const fill = entity.shaded ? shade(entity.fill, -0.1) : entity.fill;
+  const x = entity.x + dx; const y = entity.y + dy;
+  if (entity.shape === "rect") {
+    const n = document.createElementNS(svgNS, "rect"); n.setAttribute("x", x); n.setAttribute("y", y); n.setAttribute("width", entity.w); n.setAttribute("height", entity.h); n.setAttribute("fill", fill); applyShapeStyle(n, entity); nodes.push(n); return nodes;
   }
-
-  if (shape === "roundedRect") {
-    const rect = document.createElementNS(svgNS, "rect");
-    rect.setAttribute("x", entity.x + dx);
-    rect.setAttribute("y", entity.y + dy);
-    rect.setAttribute("width", entity.w);
-    rect.setAttribute("height", entity.h);
-    rect.setAttribute("fill", fill);
-    applyShapeStyle(rect, entity);
-    nodes.push(rect);
-
-    const oval = document.createElementNS(svgNS, "ellipse");
-    oval.setAttribute("cx", entity.x + entity.w / 2 + dx);
-    oval.setAttribute("cy", entity.y + entity.h / 2 + dy);
-    oval.setAttribute("rx", entity.w / 2 - 2);
-    oval.setAttribute("ry", entity.h / 2 - 2);
-    oval.setAttribute("fill", entity.innerShaded ? "rgba(0,0,0,0.08)" : "none");
-    applyShapeStyle(oval, entity, true);
-    nodes.push(oval);
-    return nodes;
+  if (entity.shape === "roundedRect") {
+    const r = document.createElementNS(svgNS, "rect"); r.setAttribute("x", x); r.setAttribute("y", y); r.setAttribute("width", entity.w); r.setAttribute("height", entity.h); r.setAttribute("fill", fill); applyShapeStyle(r, entity); nodes.push(r);
+    const o = document.createElementNS(svgNS, "ellipse"); o.setAttribute("cx", x + entity.w / 2); o.setAttribute("cy", y + entity.h / 2); o.setAttribute("rx", entity.w / 2 - 2); o.setAttribute("ry", entity.h / 2 - 2); o.setAttribute("fill", entity.innerShaded ? "rgba(0,0,0,0.08)" : "none"); applyShapeStyle(o, entity, true); nodes.push(o); return nodes;
   }
-
-  if (shape === "triangle") {
-    const poly = document.createElementNS(svgNS, "polygon");
-    poly.setAttribute("points", `${entity.x + entity.w / 2 + dx},${entity.y + dy} ${entity.x + entity.w + dx},${entity.y + entity.h + dy} ${entity.x + dx},${entity.y + entity.h + dy}`);
-    poly.setAttribute("fill", fill);
-    applyShapeStyle(poly, entity);
-    nodes.push(poly);
-    return nodes;
+  if (entity.shape === "triangle") {
+    const n = document.createElementNS(svgNS, "polygon"); n.setAttribute("points", `${x + entity.w / 2},${y} ${x + entity.w},${y + entity.h} ${x},${y + entity.h}`); n.setAttribute("fill", fill); applyShapeStyle(n, entity); nodes.push(n); return nodes;
   }
-
-  if (shape === "ellipse") {
-    const ellipse = document.createElementNS(svgNS, "ellipse");
-    ellipse.setAttribute("cx", entity.x + entity.w / 2 + dx);
-    ellipse.setAttribute("cy", entity.y + entity.h / 2 + dy);
-    ellipse.setAttribute("rx", entity.w / 2);
-    ellipse.setAttribute("ry", entity.h / 2);
-    ellipse.setAttribute("fill", fill);
-    applyShapeStyle(ellipse, entity);
-    nodes.push(ellipse);
-    return nodes;
+  if (entity.shape === "ellipse") {
+    const n = document.createElementNS(svgNS, "ellipse"); n.setAttribute("cx", x + entity.w / 2); n.setAttribute("cy", y + entity.h / 2); n.setAttribute("rx", entity.w / 2); n.setAttribute("ry", entity.h / 2); n.setAttribute("fill", fill); applyShapeStyle(n, entity); nodes.push(n); return nodes;
   }
-
-  if (shape === "circle" || shape === "step") {
-    const circle = document.createElementNS(svgNS, "circle");
-    circle.setAttribute("cx", entity.x + entity.w / 2 + dx);
-    circle.setAttribute("cy", entity.y + entity.h / 2 + dy);
-    circle.setAttribute("r", Math.min(entity.w, entity.h) / 2);
-    circle.setAttribute("fill", fill);
-    applyShapeStyle(circle, entity);
-    nodes.push(circle);
-    return nodes;
+  if (entity.shape === "circle") {
+    const n = document.createElementNS(svgNS, "circle"); n.setAttribute("cx", x + entity.w / 2); n.setAttribute("cy", y + entity.h / 2); n.setAttribute("r", Math.min(entity.w, entity.h) / 2); n.setAttribute("fill", fill); applyShapeStyle(n, entity); nodes.push(n); return nodes;
   }
-
-  const oct = document.createElementNS(svgNS, "polygon");
-  const x = entity.x + dx;
-  const y = entity.y + dy;
-  const c = 17;
-  oct.setAttribute("points", `${x + c},${y} ${x + entity.w - c},${y} ${x + entity.w},${y + c} ${x + entity.w},${y + entity.h - c} ${x + entity.w - c},${y + entity.h} ${x + c},${y + entity.h} ${x},${y + entity.h - c} ${x},${y + c}`);
-  oct.setAttribute("fill", fill);
-  applyShapeStyle(oct, entity);
-  nodes.push(oct);
-  return nodes;
+  const c = 18; const n = document.createElementNS(svgNS, "polygon");
+  n.setAttribute("points", `${x + c},${y} ${x + entity.w - c},${y} ${x + entity.w},${y + c} ${x + entity.w},${y + entity.h - c} ${x + entity.w - c},${y + entity.h} ${x + c},${y + entity.h} ${x},${y + entity.h - c} ${x},${y + c}`);
+  n.setAttribute("fill", fill); applyShapeStyle(n, entity); nodes.push(n); return nodes;
 }
 
 function relationshipPath(rel, a, b) {
-  if (rel.kind !== "ownership") {
-    return { d: `M ${a.x} ${a.y} L ${b.x} ${b.y}`, labelX: (a.x + b.x) / 2, labelY: (a.y + b.y) / 2 };
-  }
+  if (rel.kind !== "ownership") return { d: `M ${a.x} ${a.y} L ${b.x} ${b.y}`, labelX: (a.x + b.x) / 2, labelY: (a.y + b.y) / 2 };
   const midX = (a.x + b.x) / 2;
-  return {
-    d: `M ${a.x} ${a.y} L ${midX} ${a.y} L ${midX} ${b.y} L ${b.x} ${b.y}`,
-    labelX: midX + 6,
-    labelY: (a.y + b.y) / 2 - 8,
-  };
+  return { d: `M ${a.x} ${a.y} L ${midX} ${a.y} L ${midX} ${b.y} L ${b.x} ${b.y}`, labelX: midX + 6, labelY: (a.y + b.y) / 2 - 8 };
 }
 
 function drawRelationships() {
   for (const rel of state.relationships) {
-    const from = entityById(rel.fromId);
-    const to = entityById(rel.toId);
-    if (!from || !to) continue;
-    const a = center(from);
-    const b = center(to);
-    const pathSpec = relationshipPath(rel, a, b);
+    const from = entityById(rel.fromId); const to = entityById(rel.toId); if (!from || !to) continue;
+    const a = anchor(from, rel.fromSide); const b = anchor(to, rel.toSide);
+    const spec = relationshipPath(rel, a, b);
     const path = document.createElementNS(svgNS, "path");
-    path.setAttribute("d", pathSpec.d);
-    path.setAttribute("class", "rel-line");
-    path.setAttribute("stroke", rel.color || "#202f4a");
+    path.setAttribute("d", spec.d); path.setAttribute("class", "rel-line"); path.setAttribute("stroke", rel.color);
     if (rel.dashed) path.setAttribute("stroke-dasharray", "8 5");
-
     const arrowStart = rel.arrowBoth || rel.reverseArrow;
     const arrowEnd = rel.arrowBoth || !rel.reverseArrow;
     if (arrowStart) path.setAttribute("marker-start", "url(#arrowhead)");
     if (arrowEnd) path.setAttribute("marker-end", "url(#arrowhead)");
-
-    path.addEventListener("click", (evt) => {
-      evt.stopPropagation();
-      setSelection({ type: "relationship", id: rel.id });
-    });
+    path.addEventListener("click", (e) => { e.stopPropagation(); setSelection({ type: "relationship", id: rel.id }); });
 
     const label = document.createElementNS(svgNS, "text");
-    label.setAttribute("x", labelX);
-    label.setAttribute("y", labelY);
-    label.setAttribute("class", "rel-label");
-    label.setAttribute("fill", rel.color || spec.color);
-    label.textContent = rel.label;
-
+    label.setAttribute("x", spec.labelX); label.setAttribute("y", spec.labelY); label.setAttribute("class", "rel-label"); label.setAttribute("fill", rel.color);
+    label.textContent = rel.percent ? `${rel.label} (${rel.percent})` : rel.label;
     el.viewport.append(path, label);
 
     if (state.showTxnLegend && rel.kind === "transaction") {
@@ -321,43 +241,33 @@ function drawRelationships() {
 
 function drawEntities() {
   for (const entity of state.entities) {
-    const group = document.createElementNS(svgNS, "g");
-    group.setAttribute("class", `entity ${state.selection?.type === "entity" && state.selection.id === entity.id ? "selected" : ""}`);
-    group.setAttribute("data-id", entity.id);
-
+    const g = document.createElementNS(svgNS, "g");
+    g.setAttribute("class", `entity ${state.selection?.type === "entity" && state.selection.id === entity.id ? "selected" : ""}`);
+    g.setAttribute("data-id", entity.id);
     const count = Math.max(1, Math.min(6, Number(entity.stackCount || 1)));
-    for (let i = count - 1; i >= 0; i--) {
-      for (const node of createShape(entity, i * 8, i * -8)) group.appendChild(node);
-    }
-
+    for (let i = count - 1; i >= 0; i--) for (const n of createShape(entity, i * 8, i * -8)) g.appendChild(n);
     if (entity.showX) {
-      const x1 = document.createElementNS(svgNS, "line");
-      const x2 = document.createElementNS(svgNS, "line");
-      x1.setAttribute("class", "entity-x");
-      x2.setAttribute("class", "entity-x");
-      x1.setAttribute("x1", entity.x + 8); x1.setAttribute("y1", entity.y + 8);
-      x1.setAttribute("x2", entity.x + entity.w - 8); x1.setAttribute("y2", entity.y + entity.h - 8);
-      x2.setAttribute("x1", entity.x + entity.w - 8); x2.setAttribute("y1", entity.y + 8);
-      x2.setAttribute("x2", entity.x + 8); x2.setAttribute("y2", entity.y + entity.h - 8);
-      group.append(x1, x2);
+      const x1 = document.createElementNS(svgNS, "line"); const x2 = document.createElementNS(svgNS, "line");
+      x1.setAttribute("class", "entity-x"); x2.setAttribute("class", "entity-x");
+      x1.setAttribute("x1", entity.x + 8); x1.setAttribute("y1", entity.y + 8); x1.setAttribute("x2", entity.x + entity.w - 8); x1.setAttribute("y2", entity.y + entity.h - 8);
+      x2.setAttribute("x1", entity.x + entity.w - 8); x2.setAttribute("y1", entity.y + 8); x2.setAttribute("x2", entity.x + 8); x2.setAttribute("y2", entity.y + entity.h - 8);
+      g.append(x1, x2);
     }
+    const t1 = document.createElementNS(svgNS, "text"); t1.setAttribute("x", entity.x + entity.w / 2); t1.setAttribute("y", entity.y + entity.h / 2 - 2); t1.setAttribute("text-anchor", "middle"); t1.setAttribute("font-weight", "600"); t1.textContent = entity.label;
+    const t2 = document.createElementNS(svgNS, "text"); t2.setAttribute("x", entity.x + entity.w / 2); t2.setAttribute("y", entity.y + entity.h / 2 + 16); t2.setAttribute("text-anchor", "middle"); t2.setAttribute("font-size", "12"); t2.setAttribute("fill", "#4d5d7a"); t2.textContent = entity.jurisdiction || entity.type;
+    g.append(t1, t2); el.viewport.appendChild(g);
+  }
+}
 
-    const label = document.createElementNS(svgNS, "text");
-    label.setAttribute("x", entity.x + entity.w / 2);
-    label.setAttribute("y", entity.y + entity.h / 2 - 2);
-    label.setAttribute("text-anchor", "middle");
-    label.setAttribute("font-weight", "600");
-    label.textContent = entity.shape === "step" ? String(entity.stepNumber || 1) : entity.label;
-
-    const sub = document.createElementNS(svgNS, "text");
-    sub.setAttribute("x", entity.x + entity.w / 2);
-    sub.setAttribute("y", entity.y + entity.h / 2 + 15);
-    sub.setAttribute("text-anchor", "middle");
-    sub.setAttribute("fill", "#546681");
-    sub.textContent = entity.shape === "step" ? "Transactional Step" : (entity.jurisdiction || entity.type);
-
-    group.append(label, sub);
-    el.viewport.appendChild(group);
+function drawDescriptions() {
+  for (const d of state.descriptions) {
+    const t = document.createElementNS(svgNS, "text");
+    t.setAttribute("x", d.x); t.setAttribute("y", d.y); t.setAttribute("class", "description"); t.setAttribute("data-id", d.id);
+    t.setAttribute("font-size", "14"); t.setAttribute("font-weight", "500"); t.setAttribute("fill", "#233551");
+    if (state.selection?.type === "description" && state.selection.id === d.id) t.setAttribute("text-decoration", "underline");
+    t.textContent = d.text;
+    t.addEventListener("click", (e) => { e.stopPropagation(); setSelection({ type: "description", id: d.id }); });
+    el.viewport.appendChild(t);
   }
 }
 
@@ -366,6 +276,13 @@ function render() {
   el.viewport.setAttribute("transform", `translate(${state.panX} ${state.panY}) scale(${state.zoom})`);
   drawRelationships();
   drawEntities();
+  drawDescriptions();
+}
+
+function shade(hex, pct) {
+  const n = parseInt(hex.slice(1), 16); const amt = Math.round(2.55 * (pct * 100));
+  const r = Math.min(255, Math.max(0, (n >> 16) + amt)); const g = Math.min(255, Math.max(0, ((n >> 8) & 0xff) + amt)); const b = Math.min(255, Math.max(0, (n & 0xff) + amt));
+  return `#${(1 << 24 | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
 }
 
 function shade(hex, pct) {
@@ -389,18 +306,27 @@ function renderPaletteShape(spec) {
 function initPaletteAndLegend() {
   el.palette.innerHTML = "";
   for (const spec of ENTITY_TYPES) {
-    const button = document.createElement("button");
-    button.className = "palette-item";
-    button.dataset.type = spec.type;
-    button.innerHTML = `<svg viewBox="0 0 44 34" aria-hidden="true">${renderPaletteShape(spec)}</svg><span><span class="title">${spec.type}</span></span>`;
-    el.palette.appendChild(button);
+    const b = document.createElement("button");
+    b.className = "palette-item"; b.dataset.type = spec.type;
+    b.innerHTML = `<svg viewBox="0 0 44 34" aria-hidden="true">${renderPaletteShape(spec)}</svg><span><span class="title">${spec.type}</span></span>`;
+    el.palette.appendChild(b);
   }
-
-  el.entityType.innerHTML = ENTITY_TYPES.map((item) => `<option value="${item.type}">${item.type}</option>`).join("");
+  el.entityType.innerHTML = ENTITY_TYPES.map((i) => `<option value="${i.type}">${i.type}</option>`).join("");
+  const sideOptions = SIDES.map((s) => `<option value="${s}">${s[0].toUpperCase() + s.slice(1)}</option>`).join("");
+  el.relFromSide.innerHTML = sideOptions; el.relToSide.innerHTML = sideOptions;
 }
 
 function setupPointerEvents() {
   el.canvas.addEventListener("mousedown", (evt) => {
+    const desc = evt.target.closest("text.description");
+    if (desc && state.mode === "select") {
+      const d = descById(desc.dataset.id);
+      setSelection({ type: "description", id: d.id });
+      state.dragDescId = d.id;
+      state.dragOrigin = { x: evt.clientX, y: evt.clientY, dx: d.x, dy: d.y };
+      return;
+    }
+
     const node = evt.target.closest("g.entity");
     if (!node) {
       state.panOrigin = { x: evt.clientX, y: evt.clientY, ox: state.panX, oy: state.panY };
@@ -428,15 +354,13 @@ function setupPointerEvents() {
 
   window.addEventListener("mousemove", (evt) => {
     if (state.dragEntityId && state.dragOrigin && state.mode === "select") {
-      const entity = entityById(state.dragEntityId);
-      const dx = (evt.clientX - state.dragOrigin.x) / state.zoom;
-      const dy = (evt.clientY - state.dragOrigin.y) / state.zoom;
-      entity.x = state.dragOrigin.ex + dx;
-      entity.y = state.dragOrigin.ey + dy;
-      render();
-      return;
+      const e = entityById(state.dragEntityId); const dx = (evt.clientX - state.dragOrigin.x) / state.zoom; const dy = (evt.clientY - state.dragOrigin.y) / state.zoom;
+      e.x = state.dragOrigin.ex + dx; e.y = state.dragOrigin.ey + dy; render(); return;
     }
-
+    if (state.dragDescId && state.dragOrigin && state.mode === "select") {
+      const d = descById(state.dragDescId); const dx = (evt.clientX - state.dragOrigin.x) / state.zoom; const dy = (evt.clientY - state.dragOrigin.y) / state.zoom;
+      d.x = state.dragOrigin.dx + dx; d.y = state.dragOrigin.dy + dy; render(); return;
+    }
     if (state.panOrigin) {
       state.panX = state.panOrigin.ox + (evt.clientX - state.panOrigin.x);
       state.panY = state.panOrigin.oy + (evt.clientY - state.panOrigin.y);
@@ -444,11 +368,7 @@ function setupPointerEvents() {
     }
   });
 
-  window.addEventListener("mouseup", () => {
-    state.dragEntityId = null;
-    state.dragOrigin = null;
-    state.panOrigin = null;
-  });
+  window.addEventListener("mouseup", () => { state.dragEntityId = null; state.dragDescId = null; state.dragOrigin = null; state.panOrigin = null; });
 }
 
 function refreshSaves() {
@@ -457,75 +377,52 @@ function refreshSaves() {
   saves.forEach((save, idx) => {
     const node = el.template.content.firstElementChild.cloneNode(true);
     node.querySelector(".name").textContent = save.name;
-    node.querySelector(".load").addEventListener("click", () => {
-      Object.assign(state, save.data, { selection: null, connectBuffer: null, dragEntityId: null, dragOrigin: null, panOrigin: null });
-      render();
-    });
-    node.querySelector(".delete").addEventListener("click", () => {
-      saves.splice(idx, 1);
-      localStorage.setItem("tax-diagram-saves", JSON.stringify(saves));
-      refreshSaves();
-    });
+    node.querySelector(".load").addEventListener("click", () => { Object.assign(state, save.data, { selection: null, connectBuffer: null, dragEntityId: null, dragDescId: null, dragOrigin: null, panOrigin: null }); render(); });
+    node.querySelector(".delete").addEventListener("click", () => { saves.splice(idx, 1); localStorage.setItem("tax-diagram-saves", JSON.stringify(saves)); refreshSaves(); });
     el.savedDiagrams.appendChild(node);
   });
 }
 
-function download(filename, dataUrl) {
-  const a = document.createElement("a");
-  a.href = dataUrl;
-  a.download = filename;
-  a.click();
-}
+function download(filename, dataUrl) { const a = document.createElement("a"); a.href = dataUrl; a.download = filename; a.click(); }
 
 function wireUi() {
-  el.palette.addEventListener("click", (evt) => {
-    const button = evt.target.closest("button[data-type]");
-    if (button) addEntity(button.dataset.type);
-  });
+  el.palette.addEventListener("click", (evt) => { const b = evt.target.closest("button[data-type]"); if (b) addEntity(b.dataset.type); });
+  el.addDescription.addEventListener("click", addDescription);
 
   el.modeSwitcher.addEventListener("click", (evt) => {
-    const btn = evt.target.closest("button[data-mode]");
-    if (!btn) return;
-    state.mode = btn.dataset.mode;
-    state.connectBuffer = null;
+    const btn = evt.target.closest("button[data-mode]"); if (!btn) return;
+    state.mode = btn.dataset.mode; state.connectBuffer = null;
     [...el.modeSwitcher.querySelectorAll("button")].forEach((x) => x.classList.toggle("active", x === btn));
     el.modeLabel.textContent = `Current mode: ${btn.textContent}`;
   });
 
-  el.showTxnLegend.addEventListener("change", () => { state.showTxnLegend = el.showTxnLegend.checked; render(); });
-  el.txnLegendArrow.addEventListener("input", () => { state.txnLegendArrow = el.txnLegendArrow.value; render(); });
-  el.txnLegendTail.addEventListener("input", () => { state.txnLegendTail = el.txnLegendTail.value; render(); });
-
   el.entityLabel.addEventListener("input", () => { const item = entityById(state.selection?.id); if (item) { item.label = el.entityLabel.value; render(); } });
-  el.entityType.addEventListener("input", () => {
-    const item = entityById(state.selection?.id);
-    if (!item) return;
-    const spec = ENTITY_LOOKUP[el.entityType.value];
-    const dims = shapeMetrics(spec.shape);
-    item.type = spec.type; item.shape = spec.shape; item.fill = spec.fill; item.w = dims.w; item.h = dims.h; render();
-  });
-  el.entityJurisdiction.addEventListener("input", () => { const item = entityById(state.selection?.id); if (item) { item.jurisdiction = el.entityJurisdiction.value; render(); } });
-  el.entityStackCount.addEventListener("input", () => { const item = entityById(state.selection?.id); if (item) { item.stackCount = Math.max(1, Math.min(6, Number(el.entityStackCount.value || 1))); render(); } });
-  el.entityLineStyle.addEventListener("input", () => { const item = entityById(state.selection?.id); if (item) { item.lineStyle = el.entityLineStyle.value; render(); } });
-  el.entityShading.addEventListener("input", () => { const item = entityById(state.selection?.id); if (item) { item.shaded = el.entityShading.value === "shaded"; render(); } });
-  el.entityX.addEventListener("change", () => { const item = entityById(state.selection?.id); if (item) { item.showX = el.entityX.checked; render(); } });
-  el.innerLineStyle.addEventListener("input", () => { const item = entityById(state.selection?.id); if (item) { item.innerLineStyle = el.innerLineStyle.value; render(); } });
-  el.innerShading.addEventListener("input", () => { const item = entityById(state.selection?.id); if (item) { item.innerShaded = el.innerShading.value === "shaded"; render(); } });
+  el.entityType.addEventListener("input", () => { const item = entityById(state.selection?.id); if (!item) return; const spec = ENTITY_LOOKUP[el.entityType.value]; const d = shapeMetrics(spec.shape); Object.assign(item, { type: spec.type, shape: spec.shape, fill: spec.fill, w: d.w, h: d.h }); render(); });
+  el.entityJurisdiction.addEventListener("input", () => { const i = entityById(state.selection?.id); if (i) { i.jurisdiction = el.entityJurisdiction.value; render(); } });
+  el.entityStackCount.addEventListener("input", () => { const i = entityById(state.selection?.id); if (i) { i.stackCount = Math.max(1, Math.min(6, Number(el.entityStackCount.value || 1))); render(); } });
+  el.entityLineStyle.addEventListener("input", () => { const i = entityById(state.selection?.id); if (i) { i.lineStyle = el.entityLineStyle.value; render(); } });
+  el.entityShading.addEventListener("input", () => { const i = entityById(state.selection?.id); if (i) { i.shaded = el.entityShading.value === "shaded"; render(); } });
+  el.entityX.addEventListener("change", () => { const i = entityById(state.selection?.id); if (i) { i.showX = el.entityX.checked; render(); } });
+  el.innerLineStyle.addEventListener("input", () => { const i = entityById(state.selection?.id); if (i) { i.innerLineStyle = el.innerLineStyle.value; render(); } });
+  el.innerShading.addEventListener("input", () => { const i = entityById(state.selection?.id); if (i) { i.innerShaded = el.innerShading.value === "shaded"; render(); } });
 
-  el.relLabel.addEventListener("input", () => { const rel = relById(state.selection?.id); if (rel) { rel.label = el.relLabel.value; render(); } });
-  el.relPercent.addEventListener("input", () => { const rel = relById(state.selection?.id); if (rel) { rel.percent = el.relPercent.value; render(); } });
+  el.relLabel.addEventListener("input", () => { const r = relById(state.selection?.id); if (r) { r.label = el.relLabel.value; render(); } });
+  el.relPercent.addEventListener("input", () => { const r = relById(state.selection?.id); if (r) { r.percent = el.relPercent.value; render(); } });
   el.relKind.addEventListener("input", () => {
-    const rel = relById(state.selection?.id);
-    if (!rel) return;
-    rel.kind = el.relKind.value;
-    rel.dashed = rel.kind === "transaction";
-    if (rel.kind === "transaction") rel.reverseArrow = true;
+    const r = relById(state.selection?.id); if (!r) return;
+    r.kind = el.relKind.value; const isOwn = r.kind === "ownership";
+    r.color = isOwn ? "#202f4a" : "#d11f1f"; r.dashed = !isOwn; if (!isOwn) r.reverseArrow = false;
     render();
   });
-  el.relColor.addEventListener("input", () => { const rel = relById(state.selection?.id); if (rel) { rel.color = el.relColor.value; render(); } });
-  el.relLineStyle.addEventListener("input", () => { const rel = relById(state.selection?.id); if (rel) { rel.dashed = el.relLineStyle.value === "dashed"; render(); } });
-  el.relArrowBoth.addEventListener("change", () => { const rel = relById(state.selection?.id); if (rel) { rel.arrowBoth = el.relArrowBoth.checked; render(); } });
-  el.relReverseArrow.addEventListener("change", () => { const rel = relById(state.selection?.id); if (rel) { rel.reverseArrow = el.relReverseArrow.checked; render(); } });
+  el.relColor.addEventListener("input", () => { const r = relById(state.selection?.id); if (r) { r.color = el.relColor.value; render(); } });
+  el.relLineStyle.addEventListener("input", () => { const r = relById(state.selection?.id); if (r) { r.dashed = el.relLineStyle.value === "dashed"; render(); } });
+  el.relArrowBoth.addEventListener("change", () => { const r = relById(state.selection?.id); if (r) { r.arrowBoth = el.relArrowBoth.checked; render(); } });
+  el.relReverseArrow.addEventListener("change", () => { const r = relById(state.selection?.id); if (r) { r.reverseArrow = el.relReverseArrow.checked; render(); } });
+  el.relFromSide.addEventListener("input", () => { const r = relById(state.selection?.id); if (r) { r.fromSide = el.relFromSide.value; render(); } });
+  el.relToSide.addEventListener("input", () => { const r = relById(state.selection?.id); if (r) { r.toSide = el.relToSide.value; render(); } });
+
+  el.descText.addEventListener("input", () => { const d = descById(state.selection?.id); if (d) { d.text = el.descText.value; render(); } });
+  el.deleteDesc.addEventListener("click", () => { if (state.selection?.type !== "description") return; state.descriptions = state.descriptions.filter((d) => d.id !== state.selection.id); setSelection(null); });
 
   el.deleteEntity.addEventListener("click", () => {
     if (state.selection?.type !== "entity") return;
@@ -533,55 +430,23 @@ function wireUi() {
     state.relationships = state.relationships.filter((x) => x.fromId !== state.selection.id && x.toId !== state.selection.id);
     setSelection(null);
   });
-
-  el.deleteRel.addEventListener("click", () => {
-    if (state.selection?.type !== "relationship") return;
-    const rel = relById(state.selection.id);
-    if (!rel || rel.kind !== "equity") return;
-    state.relationships = state.relationships.filter((x) => x.id !== state.selection.id);
-    setSelection(null);
-  });
+  el.deleteRel.addEventListener("click", () => { if (state.selection?.type !== "relationship") return; state.relationships = state.relationships.filter((x) => x.id !== state.selection.id); setSelection(null); });
 
   document.getElementById("zoomIn").addEventListener("click", () => { state.zoom = Math.min(2, state.zoom + 0.1); render(); });
   document.getElementById("zoomOut").addEventListener("click", () => { state.zoom = Math.max(0.4, state.zoom - 0.1); render(); });
   document.getElementById("zoomReset").addEventListener("click", () => { state.zoom = 1; render(); });
-  document.getElementById("clearBtn").addEventListener("click", () => { state.entities = []; state.relationships = []; setSelection(null); render(); });
+  document.getElementById("clearBtn").addEventListener("click", () => { state.entities = []; state.relationships = []; state.descriptions = []; setSelection(null); render(); });
 
   el.saveBtn.addEventListener("click", () => {
     const saves = JSON.parse(localStorage.getItem("tax-diagram-saves") || "[]");
-    saves.unshift({
-      name: `Diagram ${new Date().toLocaleString()}`,
-      data: {
-        mode: "select", zoom: state.zoom, panX: state.panX, panY: state.panY,
-        entities: state.entities, relationships: state.relationships,
-        showTxnLegend: state.showTxnLegend, txnLegendArrow: state.txnLegendArrow, txnLegendTail: state.txnLegendTail,
-      },
-    });
-    localStorage.setItem("tax-diagram-saves", JSON.stringify(saves.slice(0, 5)));
-    refreshSaves();
+    saves.unshift({ name: `Diagram ${new Date().toLocaleString()}`, data: { mode: "select", zoom: state.zoom, panX: state.panX, panY: state.panY, entities: state.entities, relationships: state.relationships, descriptions: state.descriptions } });
+    localStorage.setItem("tax-diagram-saves", JSON.stringify(saves.slice(0, 5))); refreshSaves();
   });
 
-  document.getElementById("exportSvg").addEventListener("click", () => {
-    const source = new XMLSerializer().serializeToString(el.canvas);
-    download("tax-diagram.svg", `data:image/svg+xml;charset=utf-8,${encodeURIComponent(source)}`);
-  });
-
+  document.getElementById("exportSvg").addEventListener("click", () => { const source = new XMLSerializer().serializeToString(el.canvas); download("tax-diagram.svg", `data:image/svg+xml;charset=utf-8,${encodeURIComponent(source)}`); });
   document.getElementById("exportPng").addEventListener("click", () => {
-    const source = new XMLSerializer().serializeToString(el.canvas);
-    const img = new Image();
-    const svgBlob = new Blob([source], { type: "image/svg+xml;charset=utf-8" });
-    const url = URL.createObjectURL(svgBlob);
-    img.onload = () => {
-      const c = document.createElement("canvas");
-      c.width = 1500;
-      c.height = 920;
-      const ctx = c.getContext("2d");
-      ctx.fillStyle = "white";
-      ctx.fillRect(0, 0, c.width, c.height);
-      ctx.drawImage(img, 0, 0);
-      download("tax-diagram.png", c.toDataURL("image/png"));
-      URL.revokeObjectURL(url);
-    };
+    const source = new XMLSerializer().serializeToString(el.canvas); const img = new Image(); const blob = new Blob([source], { type: "image/svg+xml;charset=utf-8" }); const url = URL.createObjectURL(blob);
+    img.onload = () => { const c = document.createElement("canvas"); c.width = 1400; c.height = 900; const ctx = c.getContext("2d"); ctx.fillStyle = "white"; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0); download("tax-diagram.png", c.toDataURL("image/png")); URL.revokeObjectURL(url); };
     img.src = url;
   });
 }
