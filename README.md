@@ -26,3 +26,29 @@ python3 -m http.server 4173
 ```
 
 Then visit: `http://localhost:4173`
+
+## PowerPoint ribbon plugin (legend inserter)
+
+A VBA-based PowerPoint plugin scaffold is included in `powerpoint-plugin/`:
+
+- `powerpoint-plugin/LegendRibbon.xml` adds a dedicated **Org Chart Legend** ribbon tab with:
+  - shape buttons matching the legend,
+  - line-type buttons matching the legend,
+  - size controls (`Set Standard Size` and `Reset to .71 x 2.12`).
+- `powerpoint-plugin/LegendRibbon.bas` contains all callback code to insert preformatted shapes/lines on the active slide.
+
+### Default standard shape size
+
+- Height: **0.71 in**
+- Width: **2.12 in**
+
+This default is used for rectangular/triangle shapes and can be changed from the ribbon via `Set Standard Size`.
+
+### Install into PowerPoint (VBA add-in workflow)
+
+1. Open PowerPoint, then create/open a macro-enabled presentation (`.pptm`) or add-in (`.ppam`).
+2. Import `powerpoint-plugin/LegendRibbon.bas` into the VBA project:
+   - `Alt+F11` → right-click project → `Import File...`.
+3. Use the **Office Custom UI Editor** (or RibbonX editor) to attach `powerpoint-plugin/LegendRibbon.xml` as `customUI14.xml` in the file package.
+4. Save, close, reopen PowerPoint, and enable macros.
+5. You should now see the **Org Chart Legend** ribbon tab.
