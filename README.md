@@ -29,26 +29,34 @@ Then visit: `http://localhost:4173`
 
 ## PowerPoint ribbon plugin (legend inserter)
 
-A VBA-based PowerPoint plugin scaffold is included in `powerpoint-plugin/`:
+This repo includes a minimal, end-to-end PowerPoint workflow in `powerpoint-plugin/`:
 
-- `powerpoint-plugin/LegendRibbon.xml` adds a dedicated **Org Chart Legend** ribbon tab with:
-  - shape buttons matching the legend,
-  - line-type buttons matching the legend,
-  - size controls (`Set Standard Size` and `Reset to .71 x 2.12`).
-- `powerpoint-plugin/LegendRibbon.bas` contains all callback code to insert preformatted shapes/lines on the active slide.
+- `LegendRibbon.bas` (VBA callbacks for all ribbon buttons)
+- `customUI14.xml` (Ribbon XML using Office 2010 customUI namespace)
+- `build.ps1` (injects ribbon XML into a `.pptm` automatically)
 
 ### Default standard shape size
 
 - Height: **0.71 in**
 - Width: **2.12 in**
 
-This default is used for rectangular/triangle shapes and can be changed from the ribbon via `Set Standard Size`.
+### Quick start (no RibbonX Editor)
 
-### Install into PowerPoint (VBA add-in workflow)
+1. In desktop PowerPoint, create and save a blank macro-enabled presentation, e.g. `C:\temp\LegendTest.pptm`.
+2. Open VBA editor (`Alt+F11`) and import `powerpoint-plugin/LegendRibbon.bas` into that presentation.
+3. Run the build script from this repo to inject the ribbon XML:
 
-1. Open PowerPoint, then create/open a macro-enabled presentation (`.pptm`) or add-in (`.ppam`).
-2. Import `powerpoint-plugin/LegendRibbon.bas` into the VBA project:
-   - `Alt+F11` → right-click project → `Import File...`.
-3. Use the **Office Custom UI Editor** (or RibbonX editor) to attach `powerpoint-plugin/LegendRibbon.xml` as `customUI14.xml` in the file package.
-4. Save, close, reopen PowerPoint, and enable macros.
-5. You should now see the **Org Chart Legend** ribbon tab.
+```powershell
+# from repository root
+pwsh ./powerpoint-plugin/build.ps1 -InputPptm "C:\temp\LegendTest.pptm"
+```
+
+Optional output path:
+
+```powershell
+pwsh ./powerpoint-plugin/build.ps1 -InputPptm "C:\temp\LegendTest.pptm" -OutputPptm "C:\temp\LegendTest.ribbon.pptm"
+```
+
+4. Close and reopen the output `.pptm` in PowerPoint, then enable macros.
+5. You should see the **Org Chart Legend** tab with all legend shape/line buttons.
+

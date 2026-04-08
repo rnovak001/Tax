@@ -1,0 +1,40 @@
+<customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui" onLoad="OnRibbonLoad">
+  <ribbon>
+    <tabs>
+      <tab id="tabOrgLegend" label="Org Chart Legend">
+        <group id="grpSize" label="Standard Shape Size">
+          <button id="btnSetStandardSize"
+                  label="Set Standard Size"
+                  imageMso="ObjectSizeAndPositionDialog"
+                  size="large"
+                  onAction="SetStandardSize"/>
+          <button id="btnResetStandardSize"
+                  label="Reset to .71 x 2.12"
+                  imageMso="Refresh"
+                  onAction="ResetStandardSize"/>
+        </group>
+
+        <group id="grpEntityShapes" label="Legend Shapes">
+          <button id="btnUSCorp" label="U.S. Corporation" imageMso="ShapeRectangle" onAction="AddUSCorporation"/>
+          <button id="btnCFC" label="Controlled Foreign Corporation" imageMso="ShapeRectangle" onAction="AddControlledForeignCorporation"/>
+          <button id="btnUSDE" label="U.S. Disregarded Entity" imageMso="ShapeRoundedRectangle" onAction="AddUSDisregardedEntity"/>
+          <button id="btnForeignDE" label="Foreign Disregarded Entity" imageMso="ShapeRoundedRectangle" onAction="AddForeignDisregardedEntity"/>
+          <button id="btnUSPartnership" label="U.S. Partnership" imageMso="ShapeIsoscelesTriangle" onAction="AddUSPartnership"/>
+          <button id="btnCFPartnership" label="Controlled Foreign Partnership" imageMso="ShapeIsoscelesTriangle" onAction="AddControlledForeignPartnership"/>
+          <button id="btnBranch" label="Branch" imageMso="ShapeOval" onAction="AddBranch"/>
+          <button id="btnIndividual" label="Individual" imageMso="ShapeOval" onAction="AddIndividual"/>
+          <button id="btnUnrelated" label="Unrelated" imageMso="ShapeOctagon" onAction="AddUnrelated"/>
+          <button id="btnTransactionalStep" label="Transactional Step" imageMso="ShapeOval" onAction="AddTransactionalStep"/>
+        </group>
+
+        <group id="grpLineTypes" label="Legend Lines">
+          <button id="btnEquity" label="Equity" imageMso="ShapeLine" onAction="AddEquityLine"/>
+          <button id="btnDebt" label="Debt" imageMso="ShapeLine" onAction="AddDebtLine"/>
+          <button id="btnSeparator" label="Separator" imageMso="ShapeLine" onAction="AddSeparatorLine"/>
+          <button id="btnActionStep" label="Action Step" imageMso="ShapeLine" onAction="AddActionStepLine"/>
+          <button id="btnLiquidation" label="Liquidation" imageMso="ShapeLine" onAction="AddLiquidationMark"/>
+        </group>
+      </tab>
+    </tabs>
+  </ribbon>
+</customUI>
